@@ -1,0 +1,18 @@
+# Build output
+build/
+bin/
+*.exe
+*.o
+*.obj
+
+# Runtime data (each member keeps their own test data)
+data/*
+!data/.gitkeep
+
+# IDE / OS
+.vscode/
+.idea/
+.vs/
+*.user
+.DS_Store
+Thumbs.db
