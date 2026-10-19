@@ -3,12 +3,19 @@
 #include <iostream>
 #include "InputHelper.h"
 #include "Storage.h"
+#include "MasterData.h"
+#include "Balance.h"
+#include "Transactions.h"
+#include "Recurring.h"
+#include "Statistics.h"
 
 using namespace InputHelper;
 
 void App::run() {
     Storage::load(data);
-    // TODO: generate this month's recurring transactions here, then save.
+    if (Recurring::generateDueTransactions(data, Date::today()) > 0) {
+        Storage::save(data);
+    }
 
     while (true) {
         clearScreen();
@@ -27,12 +34,12 @@ void App::run() {
 
         int choice = inputInt(" Your choice: ", 0, 6);
         switch (choice) {
-            case 1: showNotImplemented("Add income"); break;
-            case 2: showNotImplemented("Add expense"); break;
-            case 3: showNotImplemented("View / edit transactions"); break;
-            case 4: showNotImplemented("Recurring transactions"); break;
-            case 5: showNotImplemented("Master data"); break;
-            case 6: showNotImplemented("Statistics & reports"); break;
+            case 1: Transactions::addIncome(data); break;
+            case 2: Transactions::addExpense(data); break;
+            case 3: Transactions::showMenu(data); break;
+            case 4: Recurring::showMenu(data); break;
+            case 5: MasterData::showMenu(data); break;
+            case 6: Statistics::showMenu(data); break;
             case 0:
                 Storage::save(data);
                 std::cout << "Data saved. Goodbye!\n";
@@ -48,12 +55,15 @@ void App::showDashboard() {
     std::cout << "        PERSONAL FINANCE MANAGER - DASHBOARD\n";
     std::cout << "        Today: " << Date::today().toString() << '\n';
     printLine('=');
-    // TODO: show total balance and the balance of each wallet.
-    std::cout << " Total balance : (not implemented yet)\n";
-    std::cout << " Wallets       : " << data.wallets.size() << '\n';
-}
-
-void App::showNotImplemented(const char* feature) {
-    std::cout << "\n[" << feature << "] is not implemented yet.\n";
-    pause();
+    // TODO (Duyen): print as a neat table once Balance is implemented.
+    std::cout << " Total balance : " << formatMoney(Balance::totalBalance(data)) << '\n';
+    std::cout << " Wallets:\n";
+    for (int i = 0; i < data.wallets.size(); i++) {
+        const Wallet& w = data.wallets[i];
+        std::cout << "   - " << w.getName() << ": "
+                  << formatMoney(Balance::walletBalance(data, w.getId())) << '\n';
+    }
+    if (data.wallets.isEmpty()) {
+        std::cout << "   (no wallets yet - add one in Master data)\n";
+    }
 }

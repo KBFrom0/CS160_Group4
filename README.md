@@ -52,7 +52,13 @@ CS160_Project/
 │   ├── Expense.h
 │   ├── RecurringTransaction.h
 │   ├── FinanceData.h        # All lists of the app in one struct
-│   ├── Storage.h            # Binary save/load
+│   ├── MasterData.h         # Lookup + CRUD for categories/sources/wallets (Duyen)
+│   ├── Balance.h            # Wallet & total balance (Duyen)
+│   ├── Transactions.h       # Add/list/edit/delete income & expense (Kien)
+│   ├── Storage.h            # Binary save/load (Quan)
+│   ├── Statistics.h         # Date-range stats + Statistics menu (Quan)
+│   ├── Recurring.h          # Monthly recurring transactions (Khoa)
+│   ├── AnnualStatistics.h   # Year-based stats (Khoa)
 │   └── App.h                # Main loop, Dashboard, menu
 ├── src/                     # Implementations (.cpp) + main.cpp
 ├── tests/                   # Unit tests (test_core.cpp)

@@ -10,7 +10,6 @@ private:
     FinanceData data;
 
     void showDashboard();
-    void showNotImplemented(const char* feature);
 
 public:
     void run();

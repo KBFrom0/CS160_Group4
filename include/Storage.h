@@ -5,6 +5,7 @@
 #include "FinanceData.h"
 
 // Binary file persistence (uses <fstream> only).
+// Owner: Quan
 // Note: std::string must be written as [length][characters], never with
 // sizeof(std::string), because a string only holds a pointer to its text.
 namespace Storage {

@@ -17,6 +17,7 @@ namespace InputHelper {
 
     void clearScreen();
     void pause();
+    void showNotImplemented(const std::string& feature);  // placeholder for TODO features
     void printLine(char ch = '-', int width = 60);
     std::string formatMoney(long long amount);  // 1500000 -> "1,500,000"
 }

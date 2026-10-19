@@ -106,6 +106,11 @@ void pause() {
     readLine();
 }
 
+void showNotImplemented(const std::string& feature) {
+    std::cout << "\n[" << feature << "] is not implemented yet.\n";
+    pause();
+}
+
 void printLine(char ch, int width) {
     std::cout << std::string(width, ch) << '\n';
 }
