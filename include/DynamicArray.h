@@ -93,6 +93,10 @@ public:
         data[index] = item;
     }
 
+    // Pointer to the first element (nullptr if empty). Only for passing the
+    // values to C-style APIs such as the chart library; do not keep it.
+    const T* rawData() const { return data; }
+
     int size() const { return count; }
     bool isEmpty() const { return count == 0; }
 

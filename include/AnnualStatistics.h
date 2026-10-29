@@ -3,20 +3,22 @@
 
 #include "DynamicArray.h"
 #include "FinanceData.h"
+#include "Statistics.h"
 
 // Year-based statistics. The user may select one or several years.
-// Owner: Khoa
+// Logic marked "TODO" in AnnualStatistics.cpp: Khoa. The GUI (src/gui) calls these.
 namespace AnnualStatistics {
-    // Asks for years like "2025 2026". Returns false if nothing valid was entered.
-    bool inputYears(DynamicArray<int>& years);
+    // ===== Logic (TODO: Khoa) =====
+
     bool containsYear(const DynamicArray<int>& years, int year);
 
-    // Total income, total expense and net balance for the selected years.
-    void showOverview(const FinanceData& data);
-    // Total income + amount per income source for the selected years.
-    void showIncomeBySource(const FinanceData& data);
-    // Total expense + amount per expense category for the selected years.
-    void showExpenseByCategory(const FinanceData& data);
+    // Totals of all transactions whose year is in `years`.
+    Statistics::PeriodSummary summarizeYears(const FinanceData& data, const DynamicArray<int>& years);
+
+    // Amount per item for the selected years.
+    // result[i] belongs to data.sources[i] / data.categories[i] (same size as that list).
+    DynamicArray<long long> incomeBySource(const FinanceData& data, const DynamicArray<int>& years);
+    DynamicArray<long long> expenseByCategory(const FinanceData& data, const DynamicArray<int>& years);
 }
 
 #endif

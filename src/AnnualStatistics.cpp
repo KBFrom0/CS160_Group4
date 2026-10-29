@@ -1,15 +1,8 @@
 #include "AnnualStatistics.h"
 
-#include "InputHelper.h"
-#include "MasterData.h"
-
 namespace AnnualStatistics {
 
-bool inputYears(DynamicArray<int>& years) {
-    // TODO
-    (void)years;
-    return false;
-}
+// ===================== Logic (TODO: Khoa) =====================
 
 bool containsYear(const DynamicArray<int>& years, int year) {
     // TODO
@@ -17,22 +10,22 @@ bool containsYear(const DynamicArray<int>& years, int year) {
     return false;
 }
 
-void showOverview(const FinanceData& data) {
+Statistics::PeriodSummary summarizeYears(const FinanceData& data, const DynamicArray<int>& years) {
     // TODO
-    (void)data;
-    InputHelper::showNotImplemented("Annual overview");
+    (void)data; (void)years;
+    return Statistics::PeriodSummary();
 }
 
-void showIncomeBySource(const FinanceData& data) {
+DynamicArray<long long> incomeBySource(const FinanceData& data, const DynamicArray<int>& years) {
     // TODO
-    (void)data;
-    InputHelper::showNotImplemented("Annual income by source");
+    (void)data; (void)years;
+    return DynamicArray<long long>();
 }
 
-void showExpenseByCategory(const FinanceData& data) {
+DynamicArray<long long> expenseByCategory(const FinanceData& data, const DynamicArray<int>& years) {
     // TODO
-    (void)data;
-    InputHelper::showNotImplemented("Annual expense by category");
+    (void)data; (void)years;
+    return DynamicArray<long long>();
 }
 
 }

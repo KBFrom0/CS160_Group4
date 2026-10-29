@@ -1,9 +1,8 @@
 #include "Recurring.h"
 
-#include "InputHelper.h"
-#include "MasterData.h"
-
 namespace Recurring {
+
+// ===================== Logic (TODO: Khoa) =====================
 
 int generateDueTransactions(FinanceData& data, const Date& today) {
     // TODO
@@ -11,10 +10,22 @@ int generateDueTransactions(FinanceData& data, const Date& today) {
     return 0;
 }
 
-void showMenu(FinanceData& data) {
+std::string addRecurring(FinanceData& data, const RecurringTransaction& item) {
     // TODO
-    (void)data;
-    InputHelper::showNotImplemented("Recurring transactions");
+    (void)data; (void)item;
+    return "";
+}
+
+bool updateRecurring(FinanceData& data, int index, const RecurringTransaction& updated) {
+    // TODO
+    (void)data; (void)index; (void)updated;
+    return false;
+}
+
+bool removeRecurring(FinanceData& data, int index) {
+    // TODO
+    (void)data; (void)index;
+    return false;
 }
 
 }

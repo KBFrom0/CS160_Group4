@@ -5,8 +5,8 @@
 #include "Date.h"
 #include "FinanceData.h"
 
-// Time-range statistics + the Statistics menu (menu 6).
-// Owner: Quan
+// Time-range statistics.
+// Logic marked "TODO" in Statistics.cpp: Quan. The GUI (src/gui) calls these.
 namespace Statistics {
     struct PeriodSummary {
         long long totalIncome = 0;
@@ -14,18 +14,12 @@ namespace Statistics {
         long long net() const { return totalIncome - totalExpense; }
     };
 
+    // ===== Logic (TODO: Quan) =====
+
     // Totals for transactions with from <= date <= to.
     // walletId = "" means all wallets; otherwise only that wallet.
     PeriodSummary summarize(const FinanceData& data, const Date& from, const Date& to,
                             const std::string& walletId = "");
-
-    // Menu 6. Options:
-    //   1. Income / expense in a date range          (Quan)
-    //   2. Income / expense in a date range by wallet (Quan)
-    //   3. Annual overview          -> AnnualStatistics::showOverview
-    //   4. Annual income by source  -> AnnualStatistics::showIncomeBySource
-    //   5. Annual expense by category -> AnnualStatistics::showExpenseByCategory
-    void showMenu(const FinanceData& data);
 }
 
 #endif

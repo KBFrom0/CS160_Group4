@@ -5,7 +5,7 @@
 #include "DynamicArray.h"
 #include "Date.h"
 #include "FinanceData.h"
-#include "InputHelper.h"
+#include "Format.h"
 
 static int failures = 0;
 
@@ -80,9 +80,9 @@ static void testDate() {
 static void testHelpers() {
     CHECK(FinanceData::makeId("CAT", 7, 3) == "CAT007");
     CHECK(FinanceData::makeId("INC", 12345, 4) == "INC12345");
-    CHECK(InputHelper::formatMoney(1500000) == "1,500,000");
-    CHECK(InputHelper::formatMoney(-999) == "-999");
-    CHECK(InputHelper::formatMoney(0) == "0");
+    CHECK(Format::money(1500000) == "1,500,000");
+    CHECK(Format::money(-999) == "-999");
+    CHECK(Format::money(0) == "0");
 }
 
 int main() {

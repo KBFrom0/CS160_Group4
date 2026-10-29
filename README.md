@@ -1,8 +1,9 @@
 # Personal Finance Manager
 
 Final project – Introduction to Programming (CS160), FIT – VNU-HCMUS.
-A console (CLI) application in C++ for managing personal income, expenses, wallets,
-recurring transactions and statistics. Data is saved to a binary file.
+A Windows desktop application in C++ for managing personal income, expenses, wallets,
+recurring transactions and statistics, with a dashboard and charts.
+Data is saved to a binary file.
 
 ## Team (Group 4)
 
@@ -15,56 +16,69 @@ recurring transactions and statistics. Data is saved to a binary file.
 
 ## Build & Run
 
-Requirement: `g++` with C++17 (MinGW-w64 / MSYS2 on Windows).
+Install the requirements first: see **[REQUIREMENTS.md](REQUIREMENTS.md)** (only MSYS2 g++).
 
-**Windows (quick):**
 ```bat
-build.bat          :: build the app -> bin\PersonalFinanceManager.exe
+run_demo.bat       :: build + open the app with sample data   (double-click)
+run.bat            :: build + open the app with your own data (double-click)
+build.bat          :: only build -> bin\PersonalFinanceManager.exe
 build.bat test     :: build + run unit tests
-bin\PersonalFinanceManager.exe
+build.bat clean    :: delete bin\ (rebuilds the libraries next time)
 ```
 
-**Any OS (manual):**
-```bash
-g++ -std=c++17 -Wall -Wextra -Iinclude src/*.cpp -o PersonalFinanceManager
-```
+The first build compiles the GUI libraries once (~2 minutes); later builds take a few seconds.
 
-**CMake:**
+- Normal mode stores data in `data/finance.dat`.
+- Demo mode (`--demo`) uses `data/demo.dat` with sample wallets, categories and transactions,
+  so your real data is never touched.
+
+**CMake (optional):**
 ```bash
-cmake -S . -B build
+cmake -S . -B build -G "MinGW Makefiles"
 cmake --build build
 ```
 
-> Run the program from the project root folder so it finds `data/finance.dat`.
+## Screens
+
+| Page | What it does |
+|------|--------------|
+| **Dashboard** | Total balance, this month's income / expense / savings, wallet balances (list + chart), recent transactions, last 6 months chart, recurring items |
+| **Transactions** | Search and filter, add / edit / delete income and expense |
+| **Recurring** | Monthly recurring income/expense with start date and optional end date |
+| **Master Data** | Expense categories, income sources and wallets (add / rename / delete) |
+| **Statistics** | By date range, by date range & wallet, annual overview, annual income by source, annual expense by category |
+| **Settings** | Light / dark theme, data file info, team |
 
 ## Project Structure
 
 ```
 CS160_Project/
-├── include/                 # Header files
-│   ├── DynamicArray.h       # Custom dynamic array (no STL containers allowed)
-│   ├── Date.h               # Date: parse/validate/compare dd/mm/yyyy
-│   ├── InputHelper.h        # Safe console input + formatting helpers
-│   ├── ExpenseCategory.h    # Master data: id + name
-│   ├── IncomeSource.h
-│   ├── Wallet.h
-│   ├── Income.h             # Transactions: store IDs, display names
-│   ├── Expense.h
-│   ├── RecurringTransaction.h
-│   ├── FinanceData.h        # All lists of the app in one struct
-│   ├── MasterData.h         # Lookup + CRUD for categories/sources/wallets (Duyen)
-│   ├── Balance.h            # Wallet & total balance (Duyen)
-│   ├── Transactions.h       # Add/list/edit/delete income & expense (Kien)
-│   ├── Storage.h            # Binary save/load (Quan)
-│   ├── Statistics.h         # Date-range stats + Statistics menu (Quan)
-│   ├── Recurring.h          # Monthly recurring transactions (Khoa)
-│   ├── AnnualStatistics.h   # Year-based stats (Khoa)
-│   └── App.h                # Main loop, Dashboard, menu
-├── src/                     # Implementations (.cpp) + main.cpp
-├── tests/                   # Unit tests (test_core.cpp)
-├── data/                    # Runtime data file (not committed)
-├── docs/                    # Report, UML, work division
-└── assets/
+├── include/
+│   ├── DynamicArray.h        # Custom dynamic array (no STL containers allowed)
+│   ├── Date.h                # Date: parse/validate/compare dd/mm/yyyy
+│   ├── Format.h              # Money formatting
+│   ├── ExpenseCategory.h, IncomeSource.h, Wallet.h       # Master data models
+│   ├── Income.h, Expense.h, RecurringTransaction.h       # Transaction models
+│   ├── FinanceData.h         # All lists of the app in one struct
+│   ├── MasterData.h          # Logic: categories/sources/wallets  (Duyen)
+│   ├── Balance.h             # Logic: wallet & total balance      (Duyen)
+│   ├── Transactions.h        # Logic: income & expense            (Kien)
+│   ├── Storage.h             # Logic: binary save/load            (Quan)
+│   ├── Statistics.h          # Logic: date-range statistics       (Quan)
+│   ├── Recurring.h           # Logic: monthly recurring           (Khoa)
+│   ├── AnnualStatistics.h    # Logic: year-based statistics       (Khoa)
+│   ├── DemoData.h            # Sample data for --demo
+│   └── gui/                  # User interface (done)
+│       ├── Gui.h             # App state, top bar, navigation
+│       ├── Pages.h           # One function per page
+│       ├── Theme.h           # Colors, fonts, light/dark
+│       └── Widgets.h         # Cards, buttons, date picker, dialogs, toasts
+├── src/                      # .cpp files (+ src/gui/ for the interface)
+├── tests/                    # Unit tests (test_core.cpp)
+├── third_party/              # Dear ImGui, ImPlot, icon header (see REQUIREMENTS.md)
+├── assets/fonts/             # Font Awesome icons
+├── data/                     # Runtime data files (not committed)
+└── docs/                     # Report, UML, work division
 ```
 
 ## Project Rules (from the assignment)
