@@ -57,9 +57,53 @@ std::string addIncomeRecord(FinanceData& data, const Date& date, const std::stri
 std::string addExpenseRecord(FinanceData& data, const Date& date, const std::string& categoryId,
                              long long amount, const std::string& walletId,
                              const std::string& description) {
-    // TODO
-    (void)data; (void)date; (void)categoryId; (void)amount; (void)walletId; (void)description;
-    return "";
+    
+    // 1. Validate basic input
+    if (!date.isValid() || amount <= 0 ||
+        categoryId.empty() || walletId.empty()) {
+        return "";
+    }
+
+    // 2. Check whether the expense category exists
+    bool categoryFound = false;
+    for (int i = 0; i < data.categories.size(); i++) {
+        if (data.categories[i].getId() == categoryId) {
+            categoryFound = true;
+            break;
+        }
+    }
+
+    if (!categoryFound) {
+        return "";
+    }
+
+    // 3. Check whether the wallet exists
+    bool walletFound = false;
+    for (int i = 0; i < data.wallets.size(); i++) {
+        if (data.wallets[i].getId() == walletId) {
+            walletFound = true;
+            break;
+        }
+    }
+
+    if (!walletFound) {
+        return "";
+    }
+
+    // 4. Generate a new expense ID
+    std::string id = FinanceData::makeId(
+        "EXP", data.nextExpenseNo, 4
+    );
+
+    // 5. Create and store the expense
+    Expense expense(id, date, categoryId, amount, walletId, description);
+    data.expenses.add(expense);
+
+    // 6. Advance the ID counter
+    data.nextExpenseNo++;
+
+    return id;
+
 }
 
 DynamicArray<TransactionRef> getSortedTransactions(const FinanceData& data) {
