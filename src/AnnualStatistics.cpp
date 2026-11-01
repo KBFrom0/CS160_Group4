@@ -5,8 +5,11 @@ namespace AnnualStatistics {
 // ===================== Logic (TODO: Khoa) =====================
 
 bool containsYear(const DynamicArray<int>& years, int year) {
-    // TODO
-    (void)years; (void)year;
+    for (int i = 0; i < years.size(); i++) {
+        if (years[i] == year) {
+            return true;
+        }
+    }
     return false;
 }
 

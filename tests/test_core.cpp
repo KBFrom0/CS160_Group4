@@ -6,6 +6,8 @@
 #include "Date.h"
 #include "FinanceData.h"
 #include "Format.h"
+#include "Recurring.h"
+#include "AnnualStatistics.h"
 
 static int failures = 0;
 
@@ -85,10 +87,68 @@ static void testHelpers() {
     CHECK(Format::money(0) == "0");
 }
 
+static void testRecurringCrud() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+
+    Date start(1, 1, 2026);
+    RecurringTransaction salary("ignored", TransactionType::INCOME, "SRC001", 1000, "WAL001", "Pay",
+                                start, false, Date());
+    RecurringTransaction rent("", TransactionType::EXPENSE, "CAT001", 500, "WAL001", "Rent",
+                              start, true, Date(1, 6, 2026));
+
+    CHECK(Recurring::addRecurring(data, salary) == "REC001");
+    CHECK(Recurring::addRecurring(data, rent) == "REC002");
+    CHECK(data.recurrings.size() == 2);
+    CHECK(data.recurrings[0].getId() == "REC001");
+
+    // Rejected input changes nothing and does not use up an ID.
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 0,
+                                  "WAL001", "", start, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "CAT001", 1,
+                                  "WAL001", "", start, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1,
+                                  "WAL999", "", start, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1,
+                                  "WAL001", "", start, true, Date(31, 12, 2025))) == "");
+    CHECK(data.recurrings.size() == 2);
+    CHECK(data.nextRecurringNo == 3);
+
+    // Update keeps the existing ID.
+    RecurringTransaction changed("REC999", TransactionType::INCOME, "SRC001", 2000, "WAL001", "Raise",
+                                 start, false, Date());
+    CHECK(Recurring::updateRecurring(data, 0, changed));
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getAmount() == 2000);
+    CHECK(!Recurring::updateRecurring(data, 2, changed));
+    CHECK(!Recurring::updateRecurring(data, -1, changed));
+
+    // A deleted ID is not reused.
+    CHECK(!Recurring::removeRecurring(data, 2));
+    CHECK(!Recurring::removeRecurring(data, -1));
+    CHECK(Recurring::removeRecurring(data, 0));
+    CHECK(data.recurrings.size() == 1);
+    CHECK(data.recurrings[0].getId() == "REC002");
+    CHECK(Recurring::addRecurring(data, salary) == "REC003");
+}
+
+static void testContainsYear() {
+    DynamicArray<int> years;
+    CHECK(!AnnualStatistics::containsYear(years, 2026));
+    years.add(2025);
+    years.add(2026);
+    CHECK(AnnualStatistics::containsYear(years, 2026));
+    CHECK(!AnnualStatistics::containsYear(years, 2024));
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
+    testRecurringCrud();
+    testContainsYear();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
