@@ -106,10 +106,55 @@ std::string addExpenseRecord(FinanceData& data, const Date& date, const std::str
 
 }
 
+Date getTransactionDate(const FinanceData& data, const TransactionRef& ref) {
+    if (ref.isIncome) {
+        return data.incomes[ref.index].getDate();
+    }
+
+    return data.expenses[ref.index].getDate();
+}
+
+bool isOlder(const FinanceData& data,
+             const TransactionRef& a,
+             const TransactionRef& b) {
+    return getTransactionDate(data, a) < getTransactionDate(data, b);
+}
+
 DynamicArray<TransactionRef> getSortedTransactions(const FinanceData& data) {
-    // TODO
-    (void)data;
-    return DynamicArray<TransactionRef>();
+    DynamicArray<TransactionRef> transactions;
+
+    // Step 1: Add all income references.
+    for (int i = 0; i < data.incomes.size(); i++) {
+        TransactionRef ref;
+        ref.isIncome = true;
+        ref.index = i;
+
+        transactions.add(ref);
+    }
+
+    // Step 2: Add all expense references.
+    for (int i = 0; i < data.expenses.size(); i++) {
+        TransactionRef ref;
+        ref.isIncome = false;
+        ref.index = i;
+
+        transactions.add(ref);
+    }
+
+    // Step 3: Sort transactions by date (newest first).
+    for (int i = 1; i < transactions.size(); i++) {
+        TransactionRef key = transactions[i];
+        int j = i - 1;
+
+        while (j >= 0 && isOlder(data, transactions[j], key)) {
+            transactions[j + 1] = transactions[j];
+            j--;
+        }
+
+        transactions[j + 1] = key;
+    }
+
+    return transactions;
 }
 
 bool updateIncome(FinanceData& data, int index, const Income& updated) {
