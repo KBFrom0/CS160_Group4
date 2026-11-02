@@ -158,15 +158,99 @@ DynamicArray<TransactionRef> getSortedTransactions(const FinanceData& data) {
 }
 
 bool updateIncome(FinanceData& data, int index, const Income& updated) {
-    // TODO
-    (void)data; (void)index; (void)updated;
-    return false;
+    // 1. Check whether the index is valid
+    if (index < 0 || index >= data.incomes.size()) {
+        return false;
+    }
+
+    // 2. Validate the updated income
+    if (!updated.getDate().isValid() ||
+        updated.getAmount() <= 0 ||
+        updated.getSourceId().empty() ||
+        updated.getWalletId().empty()) {
+        return false;
+    }
+
+    // 3. Check whether the income source exists
+    bool sourceFound = false;
+
+    for (int i = 0; i < data.sources.size(); i++) {
+        if (data.sources[i].getId() == updated.getSourceId()) {
+            sourceFound = true;
+            break;
+        }
+    }
+
+    if (!sourceFound) {
+        return false;
+    }
+
+    // 4. Check whether the wallet exists
+    bool walletFound = false;
+
+    for (int i = 0; i < data.wallets.size(); i++) {
+        if (data.wallets[i].getId() == updated.getWalletId()) {
+            walletFound = true;
+            break;
+        }
+    }
+
+    if (!walletFound) {
+        return false;
+    }
+
+    // 5. Replace the old income with the updated one
+    data.incomes[index] = updated;
+
+    return true;
 }
 
 bool updateExpense(FinanceData& data, int index, const Expense& updated) {
-    // TODO
-    (void)data; (void)index; (void)updated;
-    return false;
+    // 1. Check whether the index is valid
+    if (index < 0 || index >= data.expenses.size()) {
+        return false;
+    }
+
+    // 2. Validate the updated expense
+    if (!updated.getDate().isValid() ||
+        updated.getAmount() <= 0 ||
+        updated.getCategoryId().empty() ||
+        updated.getWalletId().empty()) {
+        return false;
+    }
+
+    // 3. Check whether the expense category exists
+    bool categoryFound = false;
+
+    for (int i = 0; i < data.categories.size(); i++) {
+        if (data.categories[i].getId() == updated.getCategoryId()) {
+            categoryFound = true;
+            break;
+        }
+    }
+
+    if (!categoryFound) {
+        return false;
+    }
+
+    // 4. Check whether the wallet exists
+    bool walletFound = false;
+
+    for (int i = 0; i < data.wallets.size(); i++) {
+        if (data.wallets[i].getId() == updated.getWalletId()) {
+            walletFound = true;
+            break;
+        }
+    }
+
+    if (!walletFound) {
+        return false;
+    }
+
+    // 5. Replace the old expense with the updated one
+    data.expenses[index] = updated;
+
+    return true;
 }
 
 bool deleteTransaction(FinanceData& data, const TransactionRef& ref) {
