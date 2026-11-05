@@ -39,15 +39,19 @@ std::string getCategoryName(const FinanceData& data, const std::string& id) {
 }
 
 std::string getSourceName(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return "(unknown)";
+    int index = findSourceIndex(data, id);
+    if (index == -1) {
+        return UNKNOWN_NAME;
+    }
+    return nameAt(data, Kind::SOURCE, index);
 }
 
 std::string getWalletName(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return "(unknown)";
+    int index = findWalletIndex(data, id);
+    if (index == -1) {
+        return UNKNOWN_NAME;
+    }
+    return nameAt(data, Kind::WALLET, index);
 }
 
 bool isCategoryInUse(const FinanceData& data, const std::string& id) {
