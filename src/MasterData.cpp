@@ -2,12 +2,22 @@
 
 namespace MasterData {
 
+namespace {
+    // Looks for an id in the list of the given kind. Returns -1 if not found.
+    int findIndex(const FinanceData& data, Kind kind, const std::string& id) {
+        for (int i = 0; i < count(data, kind); i++) {
+            if (idAt(data, kind, i) == id) {
+                return i;
+            }
+        }
+        return -1;
+    }
+}
+
 // ===================== Logic (TODO: Duyen) =====================
 
 int findCategoryIndex(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return -1;
+    return findIndex(data, Kind::CATEGORY, id);
 }
 
 int findSourceIndex(const FinanceData& data, const std::string& id) {
