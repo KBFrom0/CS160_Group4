@@ -6,6 +6,7 @@
 #include "Date.h"
 #include "FinanceData.h"
 #include "Format.h"
+#include "MasterData.h"
 
 static int failures = 0;
 
@@ -85,10 +86,50 @@ static void testHelpers() {
     CHECK(Format::money(0) == "0");
 }
 
+static void testMasterDataLookup() {
+    FinanceData data;
+
+    // Empty lists: nothing can be found.
+    CHECK(MasterData::findCategoryIndex(data, "CAT001") == -1);
+    CHECK(MasterData::getWalletName(data, "WAL001") == "(unknown)");
+
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.categories.add(ExpenseCategory("CAT002", "Rent"));
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Bonus"));
+    data.sources.add(IncomeSource("SRC003", "Savings Interest"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank Account"));
+
+    // Found at the first, middle and last position.
+    CHECK(MasterData::findCategoryIndex(data, "CAT001") == 0);
+    CHECK(MasterData::findSourceIndex(data, "SRC002") == 1);
+    CHECK(MasterData::findSourceIndex(data, "SRC003") == 2);
+    CHECK(MasterData::findWalletIndex(data, "WAL002") == 1);
+
+    // Not found: unknown id, empty id, wrong case, id of another list.
+    CHECK(MasterData::findCategoryIndex(data, "CAT999") == -1);
+    CHECK(MasterData::findSourceIndex(data, "") == -1);
+    CHECK(MasterData::findWalletIndex(data, "wal001") == -1);
+    CHECK(MasterData::findWalletIndex(data, "SRC001") == -1);
+
+    CHECK(MasterData::getCategoryName(data, "CAT002") == "Rent");
+    CHECK(MasterData::getSourceName(data, "SRC003") == "Savings Interest");
+    CHECK(MasterData::getWalletName(data, "WAL001") == "Cash");
+    CHECK(MasterData::getCategoryName(data, "CAT999") == "(unknown)");
+    CHECK(MasterData::getSourceName(data, "") == "(unknown)");
+    CHECK(MasterData::getWalletName(data, "CAT001") == "(unknown)");
+
+    // The name follows a rename (it is looked up, not copied).
+    data.wallets[0].setName("Wallet");
+    CHECK(MasterData::getWalletName(data, "WAL001") == "Wallet");
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
+    testMasterDataLookup();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
