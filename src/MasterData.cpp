@@ -3,6 +3,8 @@
 namespace MasterData {
 
 namespace {
+    const std::string UNKNOWN_NAME = "(unknown)";
+
     // Looks for an id in the list of the given kind. Returns -1 if not found.
     int findIndex(const FinanceData& data, Kind kind, const std::string& id) {
         for (int i = 0; i < count(data, kind); i++) {
@@ -29,9 +31,11 @@ int findWalletIndex(const FinanceData& data, const std::string& id) {
 }
 
 std::string getCategoryName(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return "(unknown)";
+    int index = findCategoryIndex(data, id);
+    if (index == -1) {
+        return UNKNOWN_NAME;
+    }
+    return nameAt(data, Kind::CATEGORY, index);
 }
 
 std::string getSourceName(const FinanceData& data, const std::string& id) {
