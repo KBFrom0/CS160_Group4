@@ -21,15 +21,11 @@ int findCategoryIndex(const FinanceData& data, const std::string& id) {
 }
 
 int findSourceIndex(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return -1;
+    return findIndex(data, Kind::SOURCE, id);
 }
 
 int findWalletIndex(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
-    return -1;
+    return findIndex(data, Kind::WALLET, id);
 }
 
 std::string getCategoryName(const FinanceData& data, const std::string& id) {
