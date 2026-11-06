@@ -1,5 +1,7 @@
 #include "MasterData.h"
 
+#include <cctype>
+
 namespace MasterData {
 
 namespace {
@@ -23,6 +25,33 @@ namespace {
         }
         size_t last = text.find_last_not_of(" \t");
         return text.substr(first, last - first + 1);
+    }
+
+    std::string toLowerCase(const std::string& text) {
+        std::string result = text;
+        for (size_t i = 0; i < result.size(); i++) {
+            result[i] = (char)std::tolower((unsigned char)result[i]);
+        }
+        return result;
+    }
+
+    // True if an item of this kind already has this name (upper/lower case is ignored).
+    bool nameExists(const FinanceData& data, Kind kind, const std::string& name) {
+        for (int i = 0; i < count(data, kind); i++) {
+            if (toLowerCase(nameAt(data, kind, i)) == toLowerCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Word used in error messages.
+    std::string kindLabel(Kind kind) {
+        switch (kind) {
+            case Kind::CATEGORY: return "category";
+            case Kind::SOURCE:   return "income source";
+            default:             return "wallet";
+        }
     }
 }
 
@@ -88,9 +117,12 @@ bool addItem(FinanceData& data, Kind kind, const std::string& name, std::string&
         message = "Name cannot be empty.";
         return false;
     }
+    if (nameExists(data, kind, cleanName)) {
+        message = "The " + kindLabel(kind) + " \"" + cleanName + "\" already exists.";
+        return false;
+    }
 
     // TODO
-    (void)data; (void)kind;
     message = "Not implemented yet (MasterData::addItem).";
     return false;
 }
