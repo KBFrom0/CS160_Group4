@@ -125,11 +125,62 @@ static void testMasterDataLookup() {
     CHECK(MasterData::getWalletName(data, "WAL001") == "Wallet");
 }
 
+static void testMasterDataAddItem() {
+    FinanceData data;
+    std::string message;
+
+    // A valid name creates an item with a generated ID and no message.
+    CHECK(MasterData::addItem(data, MasterData::Kind::CATEGORY, "Food", message));
+    CHECK(message == "");
+    CHECK(MasterData::addItem(data, MasterData::Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, MasterData::Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, MasterData::Kind::WALLET, "Bank Account", message));
+    CHECK(data.categories.size() == 1 && data.sources.size() == 1 && data.wallets.size() == 2);
+    CHECK(data.categories[0].getId() == "CAT001");
+    CHECK(data.sources[0].getId() == "SRC001");
+    CHECK(data.wallets[0].getId() == "WAL001");
+    CHECK(data.wallets[1].getId() == "WAL002");
+    CHECK(data.wallets[1].getName() == "Bank Account");
+    CHECK(data.nextWalletNo == 3);
+
+    // Empty name, or only spaces: rejected with a reason, nothing changes.
+    CHECK(!MasterData::addItem(data, MasterData::Kind::CATEGORY, "", message));
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::addItem(data, MasterData::Kind::CATEGORY, "   ", message));
+    CHECK(message != "");
+    CHECK(data.categories.size() == 1);
+    CHECK(data.nextCategoryNo == 2);
+
+    // Duplicate name in the same list: rejected (also with other case or extra spaces).
+    message = "";
+    CHECK(!MasterData::addItem(data, MasterData::Kind::WALLET, "Cash", message));
+    CHECK(message != "");
+    CHECK(!MasterData::addItem(data, MasterData::Kind::WALLET, "cash", message));
+    CHECK(!MasterData::addItem(data, MasterData::Kind::WALLET, "  CASH  ", message));
+    CHECK(data.wallets.size() == 2);
+    CHECK(data.nextWalletNo == 3);
+
+    // The same name in another list is fine.
+    CHECK(MasterData::addItem(data, MasterData::Kind::CATEGORY, "Cash", message));
+    CHECK(data.categories[1].getId() == "CAT002");
+
+    // Spaces around the name are removed before saving.
+    CHECK(MasterData::addItem(data, MasterData::Kind::SOURCE, "  Bonus ", message));
+    CHECK(data.sources[1].getName() == "Bonus");
+
+    // The ID comes from the counter, so a gap (deleted item) is not reused.
+    data.nextSourceNo = 10;
+    CHECK(MasterData::addItem(data, MasterData::Kind::SOURCE, "Gift", message));
+    CHECK(data.sources[2].getId() == "SRC010");
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
     testMasterDataLookup();
+    testMasterDataAddItem();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
