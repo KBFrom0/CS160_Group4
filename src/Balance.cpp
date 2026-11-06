@@ -23,9 +23,11 @@ long long walletBalance(const FinanceData& data, const std::string& walletId) {
 }
 
 long long totalBalance(const FinanceData& data) {
-    // TODO
-    (void)data;
-    return 0;
+    long long total = 0;
+    for (int i = 0; i < data.wallets.size(); i++) {
+        total += walletBalance(data, data.wallets[i].getId());
+    }
+    return total;
 }
 
 }
