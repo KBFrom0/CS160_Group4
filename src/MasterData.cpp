@@ -14,6 +14,16 @@ namespace {
         }
         return -1;
     }
+
+    // Removes spaces and tabs at the start and at the end of a name.
+    std::string trimSpaces(const std::string& text) {
+        size_t first = text.find_first_not_of(" \t");
+        if (first == std::string::npos) {
+            return "";
+        }
+        size_t last = text.find_last_not_of(" \t");
+        return text.substr(first, last - first + 1);
+    }
 }
 
 // ===================== Logic (TODO: Duyen) =====================
@@ -73,8 +83,14 @@ bool isWalletInUse(const FinanceData& data, const std::string& id) {
 }
 
 bool addItem(FinanceData& data, Kind kind, const std::string& name, std::string& message) {
+    std::string cleanName = trimSpaces(name);
+    if (cleanName.empty()) {
+        message = "Name cannot be empty.";
+        return false;
+    }
+
     // TODO
-    (void)data; (void)kind; (void)name;
+    (void)data; (void)kind;
     message = "Not implemented yet (MasterData::addItem).";
     return false;
 }
