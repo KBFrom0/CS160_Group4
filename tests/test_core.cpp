@@ -6,6 +6,8 @@
 #include "Date.h"
 #include "FinanceData.h"
 #include "Format.h"
+#include "Balance.h"
+#include "DemoData.h"
 #include "MasterData.h"
 
 static int failures = 0;
@@ -175,10 +177,61 @@ static void testMasterDataAddItem() {
     CHECK(data.sources[2].getId() == "SRC010");
 }
 
+static void testBalance() {
+    FinanceData data;
+
+    // No wallets: total is 0, and an unknown wallet has balance 0.
+    CHECK(Balance::totalBalance(data) == 0);
+    CHECK(Balance::walletBalance(data, "WAL001") == 0);
+
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank Account"));
+    data.wallets.add(Wallet("WAL003", "Credit Card"));
+
+    // A wallet without transactions has balance 0.
+    CHECK(Balance::walletBalance(data, "WAL001") == 0);
+
+    // Balance = income - expense, counted per wallet.
+    data.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 1000000, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(2, 1, 2026), "SRC001", 500000, "WAL002", ""));
+    data.expenses.add(Expense("EXP0001", Date(3, 1, 2026), "CAT001", 300000, "WAL001", ""));
+    CHECK(Balance::walletBalance(data, "WAL001") == 700000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 500000);
+    CHECK(Balance::walletBalance(data, "WAL003") == 0);
+    CHECK(Balance::totalBalance(data) == 1200000);
+
+    // A wallet can go negative (spent more than it has).
+    data.expenses.add(Expense("EXP0002", Date(4, 1, 2026), "CAT001", 2000000, "WAL003", ""));
+    CHECK(Balance::walletBalance(data, "WAL003") == -2000000);
+    CHECK(Balance::totalBalance(data) == -800000);
+
+    // Big amounts must not overflow (long long, not int).
+    data.incomes.add(Income("INC0003", Date(5, 1, 2026), "SRC001", 5000000000LL, "WAL002", ""));
+    CHECK(Balance::walletBalance(data, "WAL002") == 5000500000LL);
+
+    // The balance follows the transactions: removing one changes it.
+    data.expenses.removeAt(0);
+    CHECK(Balance::walletBalance(data, "WAL001") == 1000000);
+
+    // Transactions of a wallet that does not exist are not part of the total.
+    data.incomes.add(Income("INC0004", Date(6, 1, 2026), "SRC001", 123456, "WAL999", ""));
+    CHECK(Balance::walletBalance(data, "WAL999") == 123456);
+    CHECK(Balance::totalBalance(data) == 1000000 + 5000500000LL - 2000000);
+
+    // Sample data, worked out by hand from DemoData.cpp.
+    FinanceData demo;
+    DemoData::fill(demo);
+    CHECK(Balance::walletBalance(demo, "WAL001") == 730000);
+    CHECK(Balance::walletBalance(demo, "WAL002") == 47350000);
+    CHECK(Balance::walletBalance(demo, "WAL003") == -3500000);
+    CHECK(Balance::totalBalance(demo) == 44580000);
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
+    testBalance();
     testMasterDataLookup();
     testMasterDataAddItem();
     if (failures == 0) {
