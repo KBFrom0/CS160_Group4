@@ -122,9 +122,22 @@ bool addItem(FinanceData& data, Kind kind, const std::string& name, std::string&
         return false;
     }
 
-    // TODO
-    message = "Not implemented yet (MasterData::addItem).";
-    return false;
+    switch (kind) {
+        case Kind::CATEGORY:
+            data.categories.add(ExpenseCategory(
+                FinanceData::makeId("CAT", data.nextCategoryNo++, 3), cleanName));
+            break;
+        case Kind::SOURCE:
+            data.sources.add(IncomeSource(
+                FinanceData::makeId("SRC", data.nextSourceNo++, 3), cleanName));
+            break;
+        default:
+            data.wallets.add(Wallet(
+                FinanceData::makeId("WAL", data.nextWalletNo++, 3), cleanName));
+            break;
+    }
+    message = "";
+    return true;
 }
 
 bool renameItem(FinanceData& data, Kind kind, const std::string& id,
