@@ -254,9 +254,23 @@ bool updateExpense(FinanceData& data, int index, const Expense& updated) {
 }
 
 bool deleteTransaction(FinanceData& data, const TransactionRef& ref) {
-    // TODO
-    (void)data; (void)ref;
-    return false;
+    // 1. Delete an income transaction
+    if (ref.isIncome) {
+        if (ref.index < 0 || ref.index >= data.incomes.size()) {
+            return false;
+        }
+
+        data.incomes.removeAt(ref.index);
+        return true;
+    }
+
+    // 2. Delete an expense transaction
+    if (ref.index < 0 || ref.index >= data.expenses.size()) {
+        return false;
+    }
+
+    data.expenses.removeAt(ref.index);
+    return true;
 }
 
 }
