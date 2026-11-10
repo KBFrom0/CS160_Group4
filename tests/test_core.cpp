@@ -86,6 +86,7 @@ static void testHelpers() {
     CHECK(Format::money(0) == "0");
 }
 
+
 static void testSortedTransactions() {
     FinanceData data;
 
@@ -133,12 +134,93 @@ static void testSortedTransactions() {
     CHECK(sorted[4].isIncome && sorted[4].index == 0);
 }
 
+static void testDeleteTransaction() {
+    FinanceData data;
+
+    data.incomes.add(Income(
+        "INC001", Date(1, 1, 2025), "SRC001",
+        100000, "WAL001", "A"
+    ));
+    data.incomes.add(Income(
+        "INC002", Date(2, 1, 2025), "SRC001",
+        200000, "WAL001", "B"
+    ));
+    data.incomes.add(Income(
+        "INC003", Date(3, 1, 2025), "SRC001",
+        300000, "WAL001", "C"
+    ));
+
+    // Delete the first income.
+    CHECK(Transactions::deleteTransaction(
+        data, {true, 0}
+    ));
+    CHECK(data.incomes.size() == 2);
+    CHECK(data.incomes[0].getId() == "INC002");
+
+    // Delete the last income in the remaining array.
+    CHECK(Transactions::deleteTransaction(
+        data, {true, 1}
+    ));
+    CHECK(data.incomes.size() == 1);
+    CHECK(data.incomes[0].getId() == "INC002");
+
+    // Delete the remaining income.
+    CHECK(Transactions::deleteTransaction(
+        data, {true, 0}
+    ));
+    CHECK(data.incomes.isEmpty());
+
+    // Invalid income index.
+    CHECK(!Transactions::deleteTransaction(
+        data, {true, 0}
+    ));
+
+    // Test expense deletion.
+    data.expenses.add(Expense(
+        "EXP001", Date(1, 1, 2025), "CAT001",
+        10000, "WAL001", "A"
+    ));
+    data.expenses.add(Expense(
+        "EXP002", Date(2, 1, 2025), "CAT001",
+        20000, "WAL001", "B"
+    ));
+    data.expenses.add(Expense(
+        "EXP003", Date(3, 1, 2025), "CAT001",
+        30000, "WAL001", "C"
+    ));
+
+    // Delete the middle expense.
+    CHECK(Transactions::deleteTransaction(
+        data, {false, 1}
+    ));
+    CHECK(data.expenses.size() == 2);
+    CHECK(data.expenses[0].getId() == "EXP001");
+    CHECK(data.expenses[1].getId() == "EXP003");
+
+    // Delete the first and last remaining expenses.
+    CHECK(Transactions::deleteTransaction(
+        data, {false, 0}
+    ));
+    CHECK(data.expenses[0].getId() == "EXP003");
+
+    CHECK(Transactions::deleteTransaction(
+        data, {false, 0}
+    ));
+    CHECK(data.expenses.isEmpty());
+
+    // Invalid expense index.
+    CHECK(!Transactions::deleteTransaction(
+        data, {false, 0}
+    ));
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
 
     testSortedTransactions();
+    testDeleteTransaction();
 
     if (failures == 0) {
         std::cout << "All tests passed.\n";
