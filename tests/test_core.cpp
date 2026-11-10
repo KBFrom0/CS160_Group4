@@ -1,5 +1,6 @@
 // Unit tests for the core building blocks (DynamicArray, Date, FinanceData::makeId).
 // Build & run: see README.md. Prints FAIL lines and returns 1 if anything breaks.
+#include "Transactions.h"
 #include <iostream>
 #include <string>
 #include "DynamicArray.h"
@@ -85,14 +86,65 @@ static void testHelpers() {
     CHECK(Format::money(0) == "0");
 }
 
+static void testSortedTransactions() {
+    FinanceData data;
+
+    // Add income transactions.
+    data.incomes.add(Income(
+        "INC001", Date(1, 1, 2025), "SRC001",
+        100000, "WAL001", "Income 1"
+    ));
+
+    data.incomes.add(Income(
+        "INC002", Date(3, 1, 2025), "SRC001",
+        200000, "WAL001", "Income 2"
+    ));
+
+    data.incomes.add(Income(
+        "INC003", Date(3, 1, 2025), "SRC001",
+        300000, "WAL001", "Income 3"
+    ));
+
+    // Add expense transactions.
+    data.expenses.add(Expense(
+        "EXP001", Date(2, 1, 2025), "CAT001",
+        50000, "WAL001", "Expense 1"
+    ));
+
+    data.expenses.add(Expense(
+        "EXP002", Date(3, 1, 2025), "CAT001",
+        60000, "WAL001", "Expense 2"
+    ));
+
+    DynamicArray<Transactions::TransactionRef> sorted =
+        Transactions::getSortedTransactions(data);
+
+    CHECK(sorted.size() == 5);
+
+    // Newest date must come first.
+    CHECK(sorted[0].isIncome && sorted[0].index == 1);
+    CHECK(sorted[1].isIncome && sorted[1].index == 2);
+
+    // Same date: preserve original order.
+    CHECK(sorted[2].isIncome == false && sorted[2].index == 1);
+
+    // Older dates come afterward.
+    CHECK(sorted[3].isIncome == false && sorted[3].index == 0);
+    CHECK(sorted[4].isIncome && sorted[4].index == 0);
+}
+
 int main() {
     testDynamicArray();
     testDate();
     testHelpers();
+
+    testSortedTransactions();
+
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
     }
+
     std::cout << failures << " test(s) failed.\n";
     return 1;
 }
