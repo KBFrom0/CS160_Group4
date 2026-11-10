@@ -214,6 +214,64 @@ static void testDeleteTransaction() {
     ));
 }
 
+static void testUpdateTransactions() {
+    FinanceData data;
+
+    // Prepare valid sources, categories and wallets.
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Bonus"));
+
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.categories.add(ExpenseCategory("CAT002", "Transport"));
+
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+
+    // Test updating income to another wallet.
+    data.incomes.add(Income(
+        "INC001", Date(1, 1, 2025), "SRC001",
+        100000, "WAL001", "Old income", "REC001"
+    ));
+
+    Income updatedIncome(
+        "INC001", Date(2, 1, 2025), "SRC002",
+        200000, "WAL002", "Updated income", "REC001"
+    );
+
+    CHECK(Transactions::updateIncome(data, 0, updatedIncome));
+
+    CHECK(data.incomes[0].getWalletId() == "WAL002");
+    CHECK(data.incomes[0].getSourceId() == "SRC002");
+    CHECK(data.incomes[0].getAmount() == 200000);
+    CHECK(data.incomes[0].getId() == "INC001");
+    CHECK(data.incomes[0].getRecurringId() == "REC001");
+
+    // Invalid income index.
+    CHECK(!Transactions::updateIncome(data, 1, updatedIncome));
+
+    // Test updating expense to another wallet.
+    data.expenses.add(Expense(
+        "EXP001", Date(1, 1, 2025), "CAT001",
+        50000, "WAL001", "Old expense", "REC002"
+    ));
+
+    Expense updatedExpense(
+        "EXP001", Date(2, 1, 2025), "CAT002",
+        70000, "WAL002", "Updated expense", "REC002"
+    );
+
+    CHECK(Transactions::updateExpense(data, 0, updatedExpense));
+
+    CHECK(data.expenses[0].getWalletId() == "WAL002");
+    CHECK(data.expenses[0].getCategoryId() == "CAT002");
+    CHECK(data.expenses[0].getAmount() == 70000);
+    CHECK(data.expenses[0].getId() == "EXP001");
+    CHECK(data.expenses[0].getRecurringId() == "REC002");
+
+    // Invalid expense index.
+    CHECK(!Transactions::updateExpense(data, 1, updatedExpense));
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -221,6 +279,7 @@ int main() {
 
     testSortedTransactions();
     testDeleteTransaction();
+    testUpdateTransactions();
 
     if (failures == 0) {
         std::cout << "All tests passed.\n";
