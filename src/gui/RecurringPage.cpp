@@ -132,7 +132,7 @@ namespace {
                         ImGui::CloseCurrentPopup();
                         Gui::finishAction(app, "Recurring transaction updated.");
                     } else {
-                        form.error = "Recurring::updateRecurring() is not implemented yet.";
+                        form.error = "Could not update: the source, category or wallet no longer exists, or a date is invalid.";
                     }
                 } else {
                     std::string id = Recurring::addRecurring(data, item);
@@ -140,7 +140,7 @@ namespace {
                         ImGui::CloseCurrentPopup();
                         Gui::finishAction(app, "Recurring transaction " + id + " created.");
                     } else {
-                        form.error = "Recurring::addRecurring() is not implemented yet.";
+                        form.error = "Could not create: the source, category or wallet no longer exists, or a date is invalid.";
                     }
                 }
             }
@@ -161,7 +161,7 @@ namespace {
             if (Recurring::removeRecurring(app.data, pendingDelete)) {
                 Gui::finishAction(app, "Recurring transaction deleted.");
             } else {
-                Widgets::toast("Recurring::removeRecurring() is not implemented yet.", true);
+                Widgets::toast("This recurring transaction no longer exists.", true);
             }
         }
         Widgets::endModal();
