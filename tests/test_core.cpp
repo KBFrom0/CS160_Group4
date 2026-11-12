@@ -12,6 +12,8 @@
 #include "MasterData.h"
 #include "Recurring.h"
 #include "AnnualStatistics.h"
+#include "Storage.h"
+#include <cstdio>
 
 static int failures = 0;
 
@@ -582,6 +584,115 @@ static void testAnnualStatistics() {
     CHECK(bySource[0] == 2000 && bySource[1] == 300);
 }
 
+static void testRecurringEdgeCases() {
+    const std::string path = "bin/test_recurring.dat";
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+    data.recurrings.add(RecurringTransaction("REC001", TransactionType::INCOME, "SRC001", 1000,
+                                             "WAL002", "Pay", Date(31, 1, 2026), false, Date()));
+    data.recurrings.add(RecurringTransaction("REC002", TransactionType::EXPENSE, "CAT001", 300,
+                                             "WAL002", "Rent", Date(1, 1, 2026), false, Date()));
+
+    // Open the app in March, close it (save), open it again (load) in the same month.
+    CHECK(Recurring::generateDueTransactions(data, Date(3, 3, 2026)) == 2);
+    CHECK(Storage::save(data, path));
+    FinanceData reopened;
+    CHECK(Storage::load(reopened, path));
+    CHECK(Recurring::generateDueTransactions(reopened, Date(25, 3, 2026)) == 0);
+    CHECK(reopened.incomes.size() == 1 && reopened.expenses.size() == 1);
+    CHECK(reopened.incomes[0].getRecurringId() == "REC001");
+
+    // After reopening, the IDs continue from the saved counters.
+    CHECK(Recurring::generateDueTransactions(reopened, Date(1, 4, 2026)) == 2);
+    CHECK(reopened.incomes[1].getId() == "INC0002");
+    CHECK(reopened.expenses[1].getId() == "EXP0002");
+    std::remove(path.c_str());
+
+    // Generated transactions change the wallet balance.
+    CHECK(Balance::walletBalance(reopened, "WAL002") == 2 * 1000 - 2 * 300);
+    CHECK(Balance::walletBalance(reopened, "WAL001") == 0);
+
+    // Day 31 in February of a leap year becomes the 29th.
+    FinanceData leap = data;
+    leap.incomes.clear();
+    leap.expenses.clear();
+    CHECK(Recurring::generateDueTransactions(leap, Date(1, 2, 2028)) == 2);
+    CHECK(leap.incomes[0].getDate() == Date(29, 2, 2028));
+
+    // Same month as the start date but one year earlier: not started yet.
+    FinanceData later;
+    later.sources.add(IncomeSource("SRC001", "Salary"));
+    later.wallets.add(Wallet("WAL001", "Cash"));
+    later.recurrings.add(RecurringTransaction("REC001", TransactionType::INCOME, "SRC001", 1000,
+                                              "WAL001", "", Date(15, 3, 2027), false, Date()));
+    CHECK(Recurring::generateDueTransactions(later, Date(20, 3, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(later, Date(20, 2, 2027)) == 0);
+    CHECK(Recurring::generateDueTransactions(later, Date(1, 3, 2027)) == 1);
+
+    // A deleted recurring item is no longer generated, but its old transactions stay.
+    CHECK(Recurring::removeRecurring(reopened, 0));
+    CHECK(Recurring::generateDueTransactions(reopened, Date(1, 5, 2026)) == 1);
+    CHECK(reopened.incomes.size() == 2);
+    CHECK(reopened.expenses.size() == 3);
+
+    // An item whose wallet was removed is skipped instead of crashing.
+    reopened.wallets.removeAt(1);
+    CHECK(Recurring::generateDueTransactions(reopened, Date(1, 6, 2026)) == 0);
+
+    // No recurring items at all.
+    FinanceData empty;
+    CHECK(Recurring::generateDueTransactions(empty, Date(1, 6, 2026)) == 0);
+}
+
+static void testAnnualStatisticsEdgeCases() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.incomes.add(Income("INC0001", Date(31, 12, 2026), "SRC001", 100, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(1, 1, 2027), "SRC001", 200, "WAL001", ""));
+    data.expenses.add(Expense("EXP0001", Date(31, 12, 2026), "CAT001", 40, "WAL001", ""));
+
+    // 31/12 and 01/01 belong to different years.
+    DynamicArray<int> years;
+    years.add(2026);
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalIncome == 100);
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalExpense == 40);
+
+    // A year picked twice is still counted once.
+    years.add(2026);
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalIncome == 100);
+    CHECK(AnnualStatistics::incomeBySource(data, years)[0] == 100);
+
+    // A selected year without transactions adds nothing.
+    years.add(2030);
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalIncome == 100);
+
+    // Only years without transactions: everything is 0.
+    DynamicArray<int> none;
+    none.add(1999);
+    CHECK(AnnualStatistics::summarizeYears(data, none).net() == 0);
+    CHECK(AnnualStatistics::incomeBySource(data, none)[0] == 0);
+    CHECK(AnnualStatistics::expenseByCategory(data, none)[0] == 0);
+
+    // No sources / categories: empty result.
+    FinanceData empty;
+    CHECK(AnnualStatistics::incomeBySource(empty, years).size() == 0);
+    CHECK(AnnualStatistics::expenseByCategory(empty, years).size() == 0);
+
+    // Totals follow edits and deletes.
+    years.add(2027);
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalIncome == 300);
+    Transactions::TransactionRef first;
+    first.isIncome = true;
+    first.index = 0;
+    CHECK(Transactions::deleteTransaction(data, first));
+    CHECK(AnnualStatistics::summarizeYears(data, years).totalIncome == 200);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -597,6 +708,8 @@ int main() {
     testContainsYear();
     testGenerateDueTransactions();
     testAnnualStatistics();
+    testRecurringEdgeCases();
+    testAnnualStatisticsEdgeCases();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
