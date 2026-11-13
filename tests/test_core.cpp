@@ -471,6 +471,71 @@ static void testContainsYear() {
     CHECK(!AnnualStatistics::containsYear(years, 2024));
 }
 
+static void testMasterDataDuplicateNames() {
+    using MasterData::Kind;
+    FinanceData data;
+    std::string message;
+    MasterData::addItem(data, Kind::WALLET, "Cash", message);          // WAL001
+    MasterData::addItem(data, Kind::WALLET, "Bank Account", message);  // WAL002
+    MasterData::addItem(data, Kind::CATEGORY, "Food", message);        // CAT001
+    MasterData::addItem(data, Kind::SOURCE, "Salary", message);        // SRC001
+
+    // addItem: same name, other case, extra spaces -> rejected, nothing changes.
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "CASH", message));
+    CHECK(message != "");
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "  cash  ", message));
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "\tBank Account ", message));
+    CHECK(data.wallets.size() == 2);
+    CHECK(data.nextWalletNo == 3);
+
+    // addItem: the same name in a different kind of list is allowed.
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Food", message));
+    CHECK(message == "");
+
+    // renameItem: new name used by another item -> rejected, old name is kept.
+    message = "";
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL002", "Cash", message));
+    CHECK(message != "");
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL002", "cASh", message));
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL002", "  Cash ", message));
+    CHECK(data.wallets[1].getName() == "Bank Account");
+
+    // renameItem: empty or only spaces -> rejected.
+    message = "";
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL002", "", message));
+    CHECK(message != "");
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL002", "   ", message));
+    CHECK(data.wallets[1].getName() == "Bank Account");
+
+    // renameItem: a name used in another kind of list is fine.
+    message = "x";
+    CHECK(MasterData::renameItem(data, Kind::WALLET, "WAL002", "Food", message));
+    CHECK(message == "");
+    CHECK(data.wallets[1].getName() == "Food");
+
+    // renameItem: the same name, or only another case, of the item itself is fine.
+    CHECK(MasterData::renameItem(data, Kind::WALLET, "WAL001", "Cash", message));
+    CHECK(MasterData::renameItem(data, Kind::WALLET, "WAL001", "CASH", message));
+    CHECK(data.wallets[0].getName() == "CASH");
+
+    // renameItem: spaces around the new name are removed.
+    CHECK(MasterData::renameItem(data, Kind::SOURCE, "SRC001", "  Pay  ", message));
+    CHECK(data.sources[0].getName() == "Pay");
+
+    // renameItem: unknown id -> rejected with a message.
+    message = "";
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL999", "Anything", message));
+    CHECK(message != "");
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "CAT001", "Anything", message));
+
+    // The ID never changes when renaming.
+    CHECK(data.wallets[0].getId() == "WAL001");
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -478,6 +543,7 @@ int main() {
     testBalance();
     testMasterDataLookup();
     testMasterDataAddItem();
+    testMasterDataDuplicateNames();
 
     testSortedTransactions();
     testDeleteTransaction();
