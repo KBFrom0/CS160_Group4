@@ -639,6 +639,79 @@ static void testMasterDataRemoveInUse() {
     CHECK(data.categories[0].getId() == "CAT004");
 }
 
+static void testBalanceAfterTransactionChanges() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+
+    // Cash: +1000 +2000 +3000 -400 -500 -600.  Bank: nothing.
+    data.incomes.add(Income("INC0001", Date(1, 3, 2026), "SRC001", 1000, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(2, 3, 2026), "SRC001", 2000, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(3, 3, 2026), "SRC001", 3000, "WAL001", ""));
+    data.expenses.add(Expense("EXP0001", Date(4, 3, 2026), "CAT001", 400, "WAL001", ""));
+    data.expenses.add(Expense("EXP0002", Date(5, 3, 2026), "CAT001", 500, "WAL001", ""));
+    data.expenses.add(Expense("EXP0003", Date(6, 3, 2026), "CAT001", 600, "WAL001", ""));
+    CHECK(Balance::walletBalance(data, "WAL001") == 4500);
+    CHECK(Balance::totalBalance(data) == 4500);
+
+    // Change the amount of an income: the balance changes by the difference.
+    CHECK(Transactions::updateIncome(data, 1, Income("INC0002", Date(2, 3, 2026), "SRC001",
+                                                     2500, "WAL001", "")));
+    CHECK(Balance::walletBalance(data, "WAL001") == 5000);
+
+    // Change the amount of an expense (a bigger expense lowers the balance).
+    CHECK(Transactions::updateExpense(data, 0, Expense("EXP0001", Date(4, 3, 2026), "CAT001",
+                                                       900, "WAL001", "")));
+    CHECK(Balance::walletBalance(data, "WAL001") == 4500);
+
+    // Move an income to another wallet: one wallet loses it, the other gets it.
+    CHECK(Transactions::updateIncome(data, 2, Income("INC0003", Date(3, 3, 2026), "SRC001",
+                                                     3000, "WAL002", "")));
+    CHECK(Balance::walletBalance(data, "WAL001") == 1500);
+    CHECK(Balance::walletBalance(data, "WAL002") == 3000);
+    CHECK(Balance::totalBalance(data) == 4500);   // the total does not change
+
+    // Move an expense to another wallet.
+    CHECK(Transactions::updateExpense(data, 1, Expense("EXP0002", Date(5, 3, 2026), "CAT001",
+                                                       500, "WAL002", "")));
+    CHECK(Balance::walletBalance(data, "WAL001") == 2000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 2500);
+    CHECK(Balance::totalBalance(data) == 4500);
+
+    // A rejected update (unknown wallet) must not change any balance.
+    CHECK(!Transactions::updateIncome(data, 0, Income("INC0001", Date(1, 3, 2026), "SRC001",
+                                                      99999, "WAL999", "")));
+    CHECK(Balance::walletBalance(data, "WAL001") == 2000);
+
+    // Delete at the start, in the middle and at the end of the lists (incomes first).
+    // Now: incomes INC0001(1000,W1) INC0002(2500,W1) INC0003(3000,W2)
+    //      expenses EXP0001(900,W1) EXP0002(500,W2) EXP0003(600,W1)
+    Transactions::TransactionRef first = {true, 0};
+    CHECK(Transactions::deleteTransaction(data, first));      // INC0001 (+1000, W1)
+    CHECK(Balance::walletBalance(data, "WAL001") == 1000);
+    Transactions::TransactionRef middle = {true, 1};
+    CHECK(Transactions::deleteTransaction(data, middle));     // INC0003 (+3000, W2)
+    CHECK(Balance::walletBalance(data, "WAL002") == -500);
+    Transactions::TransactionRef last = {false, 2};
+    CHECK(Transactions::deleteTransaction(data, last));       // EXP0003 (-600, W1)
+    CHECK(Balance::walletBalance(data, "WAL001") == 1600);
+    Transactions::TransactionRef expSecond = {false, 1};
+    CHECK(Transactions::deleteTransaction(data, expSecond));  // EXP0002 (-500, W2)
+    CHECK(Balance::walletBalance(data, "WAL002") == 0);
+    Transactions::TransactionRef expFirst = {false, 0};
+    CHECK(Transactions::deleteTransaction(data, expFirst));   // EXP0001 (-900, W1)
+    CHECK(Balance::walletBalance(data, "WAL001") == 2500);    // only INC0002 is left
+    CHECK(Balance::totalBalance(data) == 2500);
+
+    // Delete the last transaction: both wallets are back to 0.
+    Transactions::TransactionRef onlyIncome = {true, 0};
+    CHECK(Transactions::deleteTransaction(data, onlyIncome));
+    CHECK(Balance::walletBalance(data, "WAL001") == 0);
+    CHECK(Balance::totalBalance(data) == 0);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -648,6 +721,7 @@ int main() {
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
     testMasterDataRemoveInUse();
+    testBalanceAfterTransactionChanges();
 
     testSortedTransactions();
     testDeleteTransaction();
