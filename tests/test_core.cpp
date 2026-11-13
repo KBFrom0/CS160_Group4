@@ -712,6 +712,53 @@ static void testBalanceAfterTransactionChanges() {
     CHECK(Balance::totalBalance(data) == 0);
 }
 
+static void testBalanceNegativeWallet() {
+    FinanceData data;
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Credit Card"));
+    data.wallets.add(Wallet("WAL003", "Bank"));
+
+    // Spend more than the wallet has: the balance is negative, not 0.
+    data.incomes.add(Income("INC0001", Date(1, 4, 2026), "SRC001", 1000, "WAL001", ""));
+    data.expenses.add(Expense("EXP0001", Date(2, 4, 2026), "CAT001", 1500, "WAL001", ""));
+    CHECK(Balance::walletBalance(data, "WAL001") == -500);
+    CHECK(Balance::totalBalance(data) == -500);
+
+    // An expense in a wallet with no income at all.
+    data.expenses.add(Expense("EXP0002", Date(3, 4, 2026), "CAT001", 2000, "WAL002", ""));
+    CHECK(Balance::walletBalance(data, "WAL002") == -2000);
+    CHECK(Balance::totalBalance(data) == -2500);
+
+    // Total with a negative wallet next to a positive one: they cancel each other.
+    data.incomes.add(Income("INC0002", Date(4, 4, 2026), "SRC001", 10000, "WAL003", ""));
+    CHECK(Balance::walletBalance(data, "WAL003") == 10000);
+    CHECK(Balance::totalBalance(data) == 7500);
+
+    // Exactly zero is not negative.
+    data.expenses.add(Expense("EXP0003", Date(5, 4, 2026), "CAT001", 500, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(6, 4, 2026), "SRC001", 1000, "WAL001", ""));
+    CHECK(Balance::walletBalance(data, "WAL001") == 0);
+
+    // Income brings a negative wallet back up (-2000 + 2500 = 500).
+    data.incomes.add(Income("INC0004", Date(7, 4, 2026), "SRC001", 2500, "WAL002", ""));
+    CHECK(Balance::walletBalance(data, "WAL002") == 500);
+
+    // Big negative amount: long long must not overflow.
+    data.expenses.add(Expense("EXP0004", Date(8, 4, 2026), "CAT001", 6000000000LL, "WAL003", ""));
+    CHECK(Balance::walletBalance(data, "WAL003") == 10000 - 6000000000LL);
+    CHECK(Balance::totalBalance(data) == 0 + 500 + 10000 - 6000000000LL);
+
+    // Every wallet negative: the total is negative too.
+    FinanceData broke;
+    broke.wallets.add(Wallet("WAL001", "A"));
+    broke.wallets.add(Wallet("WAL002", "B"));
+    broke.expenses.add(Expense("EXP0001", Date(1, 4, 2026), "CAT001", 100, "WAL001", ""));
+    broke.expenses.add(Expense("EXP0002", Date(1, 4, 2026), "CAT001", 250, "WAL002", ""));
+    CHECK(Balance::walletBalance(broke, "WAL001") == -100);
+    CHECK(Balance::walletBalance(broke, "WAL002") == -250);
+    CHECK(Balance::totalBalance(broke) == -350);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -722,6 +769,7 @@ int main() {
     testMasterDataDuplicateNames();
     testMasterDataRemoveInUse();
     testBalanceAfterTransactionChanges();
+    testBalanceNegativeWallet();
 
     testSortedTransactions();
     testDeleteTransaction();
