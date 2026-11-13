@@ -214,10 +214,32 @@ bool renameItem(FinanceData& data, Kind kind, const std::string& id,
 }
 
 bool removeItem(FinanceData& data, Kind kind, const std::string& id, std::string& message) {
-    // TODO
-    (void)data; (void)kind; (void)id;
-    message = "Not implemented yet (MasterData::removeItem).";
-    return false;
+    int index = findIndex(data, kind, id);
+    if (index == -1) {
+        message = "The " + kindLabel(kind) + " does not exist.";
+        return false;
+    }
+
+    bool inUse = false;
+    switch (kind) {
+        case Kind::CATEGORY: inUse = isCategoryInUse(data, id); break;
+        case Kind::SOURCE:   inUse = isSourceInUse(data, id);   break;
+        default:             inUse = isWalletInUse(data, id);   break;
+    }
+    if (inUse) {
+        message = "Cannot delete the " + kindLabel(kind) + " \"" + nameAt(data, kind, index) +
+                  "\" because it is used by transactions or recurring transactions.";
+        return false;
+    }
+
+    // The next ID counter is not changed, so a deleted ID is never reused.
+    switch (kind) {
+        case Kind::CATEGORY: data.categories.removeAt(index); break;
+        case Kind::SOURCE:   data.sources.removeAt(index);    break;
+        default:             data.wallets.removeAt(index);    break;
+    }
+    message = "";
+    return true;
 }
 
 // ===================== Generic access (done) =====================
