@@ -187,10 +187,30 @@ bool addItem(FinanceData& data, Kind kind, const std::string& name, std::string&
 
 bool renameItem(FinanceData& data, Kind kind, const std::string& id,
                 const std::string& newName, std::string& message) {
-    // TODO
-    (void)data; (void)kind; (void)id; (void)newName;
-    message = "Not implemented yet (MasterData::renameItem).";
-    return false;
+    int index = findIndex(data, kind, id);
+    if (index == -1) {
+        message = "The " + kindLabel(kind) + " does not exist.";
+        return false;
+    }
+
+    std::string cleanName = trimSpaces(newName);
+    if (cleanName.empty()) {
+        message = "Name cannot be empty.";
+        return false;
+    }
+    // The item itself is skipped, so keeping its name or changing only the case is allowed.
+    if (nameExists(data, kind, cleanName, index)) {
+        message = "The " + kindLabel(kind) + " \"" + cleanName + "\" already exists.";
+        return false;
+    }
+
+    switch (kind) {
+        case Kind::CATEGORY: data.categories[index].setName(cleanName); break;
+        case Kind::SOURCE:   data.sources[index].setName(cleanName);    break;
+        default:             data.wallets[index].setName(cleanName);    break;
+    }
+    message = "";
+    return true;
 }
 
 bool removeItem(FinanceData& data, Kind kind, const std::string& id, std::string& message) {
