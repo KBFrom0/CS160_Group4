@@ -36,8 +36,13 @@ namespace {
     }
 
     // True if an item of this kind already has this name (upper/lower case is ignored).
-    bool nameExists(const FinanceData& data, Kind kind, const std::string& name) {
+    // The item at index ignoreIndex is skipped (use -1 to check all items).
+    bool nameExists(const FinanceData& data, Kind kind, const std::string& name,
+                    int ignoreIndex = -1) {
         for (int i = 0; i < count(data, kind); i++) {
+            if (i == ignoreIndex) {
+                continue;
+            }
             if (toLowerCase(nameAt(data, kind, i)) == toLowerCase(name)) {
                 return true;
             }
