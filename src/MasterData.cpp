@@ -94,20 +94,60 @@ std::string getWalletName(const FinanceData& data, const std::string& id) {
 }
 
 bool isCategoryInUse(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
+    // Used by an expense transaction.
+    for (int i = 0; i < data.expenses.size(); i++) {
+        if (data.expenses[i].getCategoryId() == id) {
+            return true;
+        }
+    }
+
+    // Used by a recurring expense (refId is a category id only for EXPENSE).
+    for (int i = 0; i < data.recurrings.size(); i++) {
+        if (data.recurrings[i].getType() == TransactionType::EXPENSE &&
+            data.recurrings[i].getRefId() == id) {
+            return true;
+        }
+    }
     return false;
 }
 
 bool isSourceInUse(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
+    // Used by an income transaction.
+    for (int i = 0; i < data.incomes.size(); i++) {
+        if (data.incomes[i].getSourceId() == id) {
+            return true;
+        }
+    }
+
+    // Used by a recurring income (refId is a source id only for INCOME).
+    for (int i = 0; i < data.recurrings.size(); i++) {
+        if (data.recurrings[i].getType() == TransactionType::INCOME &&
+            data.recurrings[i].getRefId() == id) {
+            return true;
+        }
+    }
     return false;
 }
 
 bool isWalletInUse(const FinanceData& data, const std::string& id) {
-    // TODO
-    (void)data; (void)id;
+    // Used by an income or an expense transaction.
+    for (int i = 0; i < data.incomes.size(); i++) {
+        if (data.incomes[i].getWalletId() == id) {
+            return true;
+        }
+    }
+    for (int i = 0; i < data.expenses.size(); i++) {
+        if (data.expenses[i].getWalletId() == id) {
+            return true;
+        }
+    }
+
+    // Used by a recurring transaction (income or expense).
+    for (int i = 0; i < data.recurrings.size(); i++) {
+        if (data.recurrings[i].getWalletId() == id) {
+            return true;
+        }
+    }
     return false;
 }
 
