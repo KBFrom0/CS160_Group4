@@ -536,6 +536,109 @@ static void testMasterDataDuplicateNames() {
     CHECK(data.wallets[0].getId() == "WAL001");
 }
 
+static void testMasterDataRemoveInUse() {
+    using MasterData::Kind;
+    FinanceData data;
+    std::string message;
+    MasterData::addItem(data, Kind::WALLET, "Cash", message);       // WAL001
+    MasterData::addItem(data, Kind::WALLET, "Bank", message);       // WAL002
+    MasterData::addItem(data, Kind::WALLET, "Unused", message);     // WAL003
+    MasterData::addItem(data, Kind::CATEGORY, "Food", message);     // CAT001 (expense)
+    MasterData::addItem(data, Kind::CATEGORY, "Rent", message);     // CAT002 (recurring)
+    MasterData::addItem(data, Kind::CATEGORY, "Travel", message);   // CAT003 (unused)
+    MasterData::addItem(data, Kind::SOURCE, "Salary", message);     // SRC001 (income)
+    MasterData::addItem(data, Kind::SOURCE, "Bonus", message);      // SRC002 (recurring)
+    MasterData::addItem(data, Kind::SOURCE, "Gift", message);       // SRC003 (unused)
+
+    // Nothing is used yet.
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+
+    data.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 1000, "WAL001", ""));
+    data.expenses.add(Expense("EXP0001", Date(2, 1, 2026), "CAT001", 100, "WAL001", ""));
+    data.recurrings.add(RecurringTransaction("REC001", TransactionType::EXPENSE, "CAT002", 500,
+                                             "WAL002", "", Date(1, 1, 2026), false, Date()));
+    data.recurrings.add(RecurringTransaction("REC002", TransactionType::INCOME, "SRC002", 700,
+                                             "WAL002", "", Date(1, 1, 2026), false, Date()));
+
+    // The in-use checks see income, expense and recurring (both types).
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));    // income
+    CHECK(MasterData::isSourceInUse(data, "SRC002"));    // recurring income
+    CHECK(!MasterData::isSourceInUse(data, "SRC003"));
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));  // expense
+    CHECK(MasterData::isCategoryInUse(data, "CAT002"));  // recurring expense
+    CHECK(!MasterData::isCategoryInUse(data, "CAT003"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));    // income + expense
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));    // recurring only
+    CHECK(!MasterData::isWalletInUse(data, "WAL003"));
+
+    // A recurring refId is only a category for EXPENSE and only a source for INCOME,
+    // so the same text in the other list does not count as "in use".
+    FinanceData other;
+    other.recurrings.add(RecurringTransaction("REC001", TransactionType::INCOME, "X001", 1,
+                                              "W", "", Date(1, 1, 2026), false, Date()));
+    CHECK(MasterData::isSourceInUse(other, "X001"));
+    CHECK(!MasterData::isCategoryInUse(other, "X001"));
+
+    // Removing an item in use is refused: message is set and nothing changes.
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::SOURCE, "SRC001", message));      // income
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::CATEGORY, "CAT001", message));    // expense
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::CATEGORY, "CAT002", message));    // recurring
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::SOURCE, "SRC002", message));      // recurring
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "WAL001", message));      // transactions
+    CHECK(message != "");
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "WAL002", message));      // recurring only
+    CHECK(message != "");
+    CHECK(data.wallets.size() == 3 && data.categories.size() == 3 && data.sources.size() == 3);
+
+    // Removing an unknown id is refused with a message.
+    message = "";
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "WAL999", message));
+    CHECK(message != "");
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "CAT003", message));
+    CHECK(data.wallets.size() == 3 && data.categories.size() == 3);
+
+    // Removing an unused item works, with an empty message.
+    message = "x";
+    CHECK(MasterData::removeItem(data, Kind::WALLET, "WAL003", message));
+    CHECK(message == "");
+    CHECK(data.wallets.size() == 2);
+    CHECK(MasterData::findWalletIndex(data, "WAL003") == -1);
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT003", message));
+    CHECK(MasterData::removeItem(data, Kind::SOURCE, "SRC003", message));
+    CHECK(data.categories.size() == 2 && data.sources.size() == 2);
+
+    // Removing the first item keeps the others (and their order).
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT001", message) == false);
+    data.expenses.removeAt(0);
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT001", message));
+    CHECK(data.categories.size() == 1);
+    CHECK(data.categories[0].getId() == "CAT002");
+
+    // After the transactions are gone the item can be removed too.
+    data.recurrings.removeAt(0);
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT002", message));
+    CHECK(data.categories.isEmpty());
+
+    // A deleted ID is never reused: the counter is not decreased.
+    CHECK(data.nextWalletNo == 4);
+    CHECK(MasterData::addItem(data, Kind::WALLET, "New", message));
+    CHECK(data.wallets[data.wallets.size() - 1].getId() == "WAL004");
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Again", message));
+    CHECK(data.categories[0].getId() == "CAT004");
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -544,6 +647,7 @@ int main() {
     testMasterDataLookup();
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
+    testMasterDataRemoveInUse();
 
     testSortedTransactions();
     testDeleteTransaction();
