@@ -14,6 +14,7 @@
 #include "AnnualStatistics.h"
 #include "Storage.h"
 #include <cstdio>
+#include <fstream>
 
 static int failures = 0;
 
@@ -609,6 +610,61 @@ static void testStorageEdgeCases() {
     }
 
     std::remove(fullPath.c_str());
+
+    FinanceData nonExistentData;
+    CHECK(!Storage::load(nonExistentData, "non_existent_file_path_12345.dat"));
+
+    std::string emptyPath = "test_empty_zero_byte.dat";
+    std::remove(emptyPath.c_str());
+    {
+        std::ofstream emptyFile(emptyPath, std::ios::binary);
+    }
+    FinanceData emptyZeroData;
+    CHECK(!Storage::load(emptyZeroData, emptyPath));
+    std::remove(emptyPath.c_str());
+
+    std::string corruptGarbagePath = "test_corrupt_garbage.dat";
+    std::remove(corruptGarbagePath.c_str());
+    {
+        std::ofstream f(corruptGarbagePath, std::ios::binary);
+        const char garbage[] = "\xff\xff\xff\xff\x00\x00\x00\x00\xfe\xed\xfa\xce\x12\x34\x56\x78";
+        f.write(garbage, sizeof(garbage));
+    }
+    FinanceData corruptGarbageData;
+    CHECK(!Storage::load(corruptGarbageData, corruptGarbagePath));
+    std::remove(corruptGarbagePath.c_str());
+
+    std::string corruptHugeStrPath = "test_corrupt_huge_string.dat";
+    std::remove(corruptHugeStrPath.c_str());
+    {
+        std::ofstream f(corruptHugeStrPath, std::ios::binary);
+        int val = 1;
+        for (int i = 0; i < 6; i++) {
+            f.write(reinterpret_cast<const char*>(&val), sizeof(val));
+        }
+        int count = 1;
+        f.write(reinterpret_cast<const char*>(&count), sizeof(count));
+        int hugeLen = 1000000;
+        f.write(reinterpret_cast<const char*>(&hugeLen), sizeof(hugeLen));
+    }
+    FinanceData corruptHugeStrData;
+    CHECK(!Storage::load(corruptHugeStrData, corruptHugeStrPath));
+    std::remove(corruptHugeStrPath.c_str());
+
+    std::string corruptNegCountPath = "test_corrupt_neg_count.dat";
+    std::remove(corruptNegCountPath.c_str());
+    {
+        std::ofstream f(corruptNegCountPath, std::ios::binary);
+        int val = 1;
+        for (int i = 0; i < 6; i++) {
+            f.write(reinterpret_cast<const char*>(&val), sizeof(val));
+        }
+        int negCount = -5;
+        f.write(reinterpret_cast<const char*>(&negCount), sizeof(negCount));
+    }
+    FinanceData corruptNegCountData;
+    CHECK(!Storage::load(corruptNegCountData, corruptNegCountPath));
+    std::remove(corruptNegCountPath.c_str());
 }
 
 int main() {
