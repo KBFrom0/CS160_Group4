@@ -512,6 +512,103 @@ static void testStorageEdgeCases() {
     CHECK(loaded.nextRecurringNo == original.nextRecurringNo);
 
     std::remove(path.c_str());
+
+    std::string fullPath = "test_full.dat";
+    std::remove(fullPath.c_str());
+
+    FinanceData dataFull;
+    dataFull.nextCategoryNo = 42;
+    dataFull.nextSourceNo = 53;
+    dataFull.nextWalletNo = 64;
+    dataFull.nextIncomeNo = 1005;
+    dataFull.nextExpenseNo = 2006;
+    dataFull.nextRecurringNo = 77;
+
+    dataFull.wallets.add(Wallet("WAL001", "Cash"));
+    dataFull.wallets.add(Wallet("WAL002", ""));
+    dataFull.wallets.add(Wallet("WAL003", "Main Bank Account"));
+
+    dataFull.categories.add(ExpenseCategory("CAT001", "Food & Dining"));
+    dataFull.categories.add(ExpenseCategory("CAT002", ""));
+
+    dataFull.sources.add(IncomeSource("SRC001", "Salary"));
+    dataFull.sources.add(IncomeSource("SRC002", ""));
+
+    dataFull.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 9999999999999LL, "WAL001", "", ""));
+    dataFull.incomes.add(Income("INC0002", Date(15, 6, 2026), "SRC002", 5000000LL, "WAL003", "Bonus salary", "REC001"));
+
+    dataFull.expenses.add(Expense("EXP0001", Date(2, 1, 2026), "CAT001", 8888888888888LL, "WAL001", "", ""));
+    dataFull.expenses.add(Expense("EXP0002", Date(20, 8, 2026), "CAT002", 120000LL, "WAL002", "Office supplies", "REC002"));
+
+    dataFull.recurrings.add(RecurringTransaction("REC001", TransactionType::INCOME, "SRC001", 1234567890123LL, "WAL003", "", Date(1, 1, 2026), false, Date(1, 1, 2000)));
+    dataFull.recurrings.add(RecurringTransaction("REC002", TransactionType::EXPENSE, "CAT001", 3500000LL, "WAL001", "Monthly rent", Date(5, 2, 2026), true, Date(5, 12, 2026)));
+
+    CHECK(Storage::save(dataFull, fullPath));
+
+    FinanceData loadedFull;
+    CHECK(Storage::load(loadedFull, fullPath));
+
+    CHECK(loadedFull.nextCategoryNo == dataFull.nextCategoryNo);
+    CHECK(loadedFull.nextSourceNo == dataFull.nextSourceNo);
+    CHECK(loadedFull.nextWalletNo == dataFull.nextWalletNo);
+    CHECK(loadedFull.nextIncomeNo == dataFull.nextIncomeNo);
+    CHECK(loadedFull.nextExpenseNo == dataFull.nextExpenseNo);
+    CHECK(loadedFull.nextRecurringNo == dataFull.nextRecurringNo);
+
+    CHECK(loadedFull.wallets.size() == dataFull.wallets.size());
+    for (int i = 0; i < dataFull.wallets.size(); i++) {
+        CHECK(loadedFull.wallets[i].getId() == dataFull.wallets[i].getId());
+        CHECK(loadedFull.wallets[i].getName() == dataFull.wallets[i].getName());
+    }
+
+    CHECK(loadedFull.categories.size() == dataFull.categories.size());
+    for (int i = 0; i < dataFull.categories.size(); i++) {
+        CHECK(loadedFull.categories[i].getId() == dataFull.categories[i].getId());
+        CHECK(loadedFull.categories[i].getName() == dataFull.categories[i].getName());
+    }
+
+    CHECK(loadedFull.sources.size() == dataFull.sources.size());
+    for (int i = 0; i < dataFull.sources.size(); i++) {
+        CHECK(loadedFull.sources[i].getId() == dataFull.sources[i].getId());
+        CHECK(loadedFull.sources[i].getName() == dataFull.sources[i].getName());
+    }
+
+    CHECK(loadedFull.incomes.size() == dataFull.incomes.size());
+    for (int i = 0; i < dataFull.incomes.size(); i++) {
+        CHECK(loadedFull.incomes[i].getId() == dataFull.incomes[i].getId());
+        CHECK(loadedFull.incomes[i].getDate() == dataFull.incomes[i].getDate());
+        CHECK(loadedFull.incomes[i].getSourceId() == dataFull.incomes[i].getSourceId());
+        CHECK(loadedFull.incomes[i].getAmount() == dataFull.incomes[i].getAmount());
+        CHECK(loadedFull.incomes[i].getWalletId() == dataFull.incomes[i].getWalletId());
+        CHECK(loadedFull.incomes[i].getDescription() == dataFull.incomes[i].getDescription());
+        CHECK(loadedFull.incomes[i].getRecurringId() == dataFull.incomes[i].getRecurringId());
+    }
+
+    CHECK(loadedFull.expenses.size() == dataFull.expenses.size());
+    for (int i = 0; i < dataFull.expenses.size(); i++) {
+        CHECK(loadedFull.expenses[i].getId() == dataFull.expenses[i].getId());
+        CHECK(loadedFull.expenses[i].getDate() == dataFull.expenses[i].getDate());
+        CHECK(loadedFull.expenses[i].getCategoryId() == dataFull.expenses[i].getCategoryId());
+        CHECK(loadedFull.expenses[i].getAmount() == dataFull.expenses[i].getAmount());
+        CHECK(loadedFull.expenses[i].getWalletId() == dataFull.expenses[i].getWalletId());
+        CHECK(loadedFull.expenses[i].getDescription() == dataFull.expenses[i].getDescription());
+        CHECK(loadedFull.expenses[i].getRecurringId() == dataFull.expenses[i].getRecurringId());
+    }
+
+    CHECK(loadedFull.recurrings.size() == dataFull.recurrings.size());
+    for (int i = 0; i < dataFull.recurrings.size(); i++) {
+        CHECK(loadedFull.recurrings[i].getId() == dataFull.recurrings[i].getId());
+        CHECK(loadedFull.recurrings[i].getType() == dataFull.recurrings[i].getType());
+        CHECK(loadedFull.recurrings[i].getRefId() == dataFull.recurrings[i].getRefId());
+        CHECK(loadedFull.recurrings[i].getAmount() == dataFull.recurrings[i].getAmount());
+        CHECK(loadedFull.recurrings[i].getWalletId() == dataFull.recurrings[i].getWalletId());
+        CHECK(loadedFull.recurrings[i].getDescription() == dataFull.recurrings[i].getDescription());
+        CHECK(loadedFull.recurrings[i].getStartDate() == dataFull.recurrings[i].getStartDate());
+        CHECK(loadedFull.recurrings[i].getHasEndDate() == dataFull.recurrings[i].getHasEndDate());
+        CHECK(loadedFull.recurrings[i].getEndDate() == dataFull.recurrings[i].getEndDate());
+    }
+
+    std::remove(fullPath.c_str());
 }
 
 int main() {
