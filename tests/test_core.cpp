@@ -12,6 +12,8 @@
 #include "MasterData.h"
 #include "Recurring.h"
 #include "AnnualStatistics.h"
+#include "Storage.h"
+#include <cstdio>
 
 static int failures = 0;
 
@@ -471,6 +473,47 @@ static void testContainsYear() {
     CHECK(!AnnualStatistics::containsYear(years, 2024));
 }
 
+static void testStorageEdgeCases() {
+    std::string path = "test_empty.dat";
+    std::remove(path.c_str());
+
+    FinanceData original;
+    CHECK(Storage::save(original, path));
+
+    FinanceData loaded;
+    loaded.nextCategoryNo = 100;
+    loaded.nextSourceNo = 100;
+    loaded.nextWalletNo = 100;
+    loaded.nextIncomeNo = 100;
+    loaded.nextExpenseNo = 100;
+    loaded.nextRecurringNo = 100;
+
+    CHECK(Storage::load(loaded, path));
+
+    CHECK(loaded.categories.isEmpty());
+    CHECK(loaded.sources.isEmpty());
+    CHECK(loaded.wallets.isEmpty());
+    CHECK(loaded.incomes.isEmpty());
+    CHECK(loaded.expenses.isEmpty());
+    CHECK(loaded.recurrings.isEmpty());
+
+    CHECK(loaded.categories.size() == 0);
+    CHECK(loaded.sources.size() == 0);
+    CHECK(loaded.wallets.size() == 0);
+    CHECK(loaded.incomes.size() == 0);
+    CHECK(loaded.expenses.size() == 0);
+    CHECK(loaded.recurrings.size() == 0);
+
+    CHECK(loaded.nextCategoryNo == original.nextCategoryNo);
+    CHECK(loaded.nextSourceNo == original.nextSourceNo);
+    CHECK(loaded.nextWalletNo == original.nextWalletNo);
+    CHECK(loaded.nextIncomeNo == original.nextIncomeNo);
+    CHECK(loaded.nextExpenseNo == original.nextExpenseNo);
+    CHECK(loaded.nextRecurringNo == original.nextRecurringNo);
+
+    std::remove(path.c_str());
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -484,6 +527,7 @@ int main() {
     testUpdateTransactions();
     testRecurringCrud();
     testContainsYear();
+    testStorageEdgeCases();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
