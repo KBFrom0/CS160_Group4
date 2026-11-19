@@ -665,6 +665,58 @@ static void testStorageEdgeCases() {
     FinanceData corruptNegCountData;
     CHECK(!Storage::load(corruptNegCountData, corruptNegCountPath));
     std::remove(corruptNegCountPath.c_str());
+
+    FinanceData validData;
+    validData.categories.add(ExpenseCategory("CAT001", "Groceries"));
+    validData.sources.add(IncomeSource("SRC001", "Salary"));
+    validData.wallets.add(Wallet("WAL001", "Bank"));
+    validData.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 1000000LL, "WAL001", "Monthly income", ""));
+    validData.expenses.add(Expense("EXP0001", Date(2, 1, 2026), "CAT001", 50000LL, "WAL001", "Food", ""));
+    validData.recurrings.add(RecurringTransaction("REC001", TransactionType::EXPENSE, "CAT001", 50000LL, "WAL001", "Food", Date(1, 1, 2026), false, Date(1, 1, 2000)));
+
+    std::string validPath = "test_valid_for_trunc.dat";
+    std::remove(validPath.c_str());
+    CHECK(Storage::save(validData, validPath));
+
+    std::ifstream in(validPath, std::ios::binary | std::ios::ate);
+    std::streamsize fileSize = in.tellg();
+    in.seekg(0, std::ios::beg);
+    char* fileBuffer = new char[fileSize];
+    in.read(fileBuffer, fileSize);
+    in.close();
+
+    std::string truncFewBytesPath = "test_trunc_few.dat";
+    std::remove(truncFewBytesPath.c_str());
+    {
+        std::ofstream out(truncFewBytesPath, std::ios::binary);
+        out.write(fileBuffer, 10);
+    }
+    FinanceData truncFewData;
+    CHECK(!Storage::load(truncFewData, truncFewBytesPath));
+    std::remove(truncFewBytesPath.c_str());
+
+    std::string truncHalfPath = "test_trunc_half.dat";
+    std::remove(truncHalfPath.c_str());
+    {
+        std::ofstream out(truncHalfPath, std::ios::binary);
+        out.write(fileBuffer, fileSize / 2);
+    }
+    FinanceData truncHalfData;
+    CHECK(!Storage::load(truncHalfData, truncHalfPath));
+    std::remove(truncHalfPath.c_str());
+
+    std::string truncAlmostPath = "test_trunc_almost.dat";
+    std::remove(truncAlmostPath.c_str());
+    {
+        std::ofstream out(truncAlmostPath, std::ios::binary);
+        out.write(fileBuffer, fileSize - 1);
+    }
+    FinanceData truncAlmostData;
+    CHECK(!Storage::load(truncAlmostData, truncAlmostPath));
+    std::remove(truncAlmostPath.c_str());
+
+    delete[] fileBuffer;
+    std::remove(validPath.c_str());
 }
 
 int main() {
