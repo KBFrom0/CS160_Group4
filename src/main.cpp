@@ -1,8 +1,7 @@
 // Entry point: creates the Windows window + DirectX 11 device and runs the GUI loop.
 // Based on the official Dear ImGui "example_win32_directx11".
 //
-// Usage:  PersonalFinanceManager.exe          -> normal mode (data/finance.dat)
-//         PersonalFinanceManager.exe --demo   -> sample data (data/demo.dat)
+// Accounts are kept in data/users.dat, each account's data in data/users/<username>.dat.
 #include <string>
 #include <windows.h>
 #include <d3d11.h>
@@ -11,6 +10,7 @@
 #include "imgui_impl_dx11.h"
 #include "implot.h"
 #include "gui/Gui.h"
+#include "gui/Images.h"
 #include "gui/Theme.h"
 
 namespace {
@@ -111,11 +111,7 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-int main(int argc, char* argv[]) {
-    bool demo = false;
-    for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--demo") demo = true;
-    }
+int main() {
     useProjectFolder();
 
     ImGui_ImplWin32_EnableDpiAwareness();
@@ -146,9 +142,11 @@ int main(int argc, char* argv[]) {
     ImGui_ImplDX11_Init(device, deviceContext);
     Theme::init(dpiScale);
 
+    Images::init(device);
+
     Gui::AppState app;
     app.nativeWindow = hwnd;
-    Gui::startup(app, demo);
+    Gui::startup(app);
 
     ShowWindow(hwnd, SW_SHOWDEFAULT);
     UpdateWindow(hwnd);

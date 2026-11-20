@@ -21,7 +21,7 @@ file(GLOB GUI_SOURCES src/gui/*.cpp)
 
 add_executable(PersonalFinanceManager WIN32 src/main.cpp ${LOGIC_SOURCES} ${GUI_SOURCES})
 target_include_directories(PersonalFinanceManager PRIVATE include)
-target_link_libraries(PersonalFinanceManager PRIVATE gui_libs d3d11 d3dcompiler dxgi dwmapi gdi32 imm32)
+target_link_libraries(PersonalFinanceManager PRIVATE gui_libs d3d11 d3dcompiler dxgi dwmapi gdi32 imm32 windowscodecs ole32)
 
 add_executable(run_tests tests/test_core.cpp ${LOGIC_SOURCES})
 target_include_directories(run_tests PRIVATE include)

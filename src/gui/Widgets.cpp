@@ -354,6 +354,12 @@ bool textInput(const char* id, std::string& text, const char* hint) {
     return ImGui::InputTextWithHint(id, hint, &text);
 }
 
+bool passwordInput(const char* id, std::string& text, const char* hint) {
+    ImGui::SetNextItemWidth(-1);
+    return ImGui::InputTextWithHint(id, hint, &text,
+                                    ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue);
+}
+
 std::string nameOf(const FinanceData& data, MasterData::Kind kind, const std::string& id) {
     int n = MasterData::count(data, kind);
     for (int i = 0; i < n; i++) {

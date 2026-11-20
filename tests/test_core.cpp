@@ -8,11 +8,11 @@
 #include "FinanceData.h"
 #include "Format.h"
 #include "Balance.h"
-#include "DemoData.h"
 #include "MasterData.h"
 #include "Recurring.h"
 #include "AnnualStatistics.h"
 #include "Storage.h"
+#include "Auth.h"
 #include <cstdio>
 #include <fstream>
 
@@ -229,13 +229,6 @@ static void testBalance() {
     CHECK(Balance::walletBalance(data, "WAL999") == 123456);
     CHECK(Balance::totalBalance(data) == 1000000 + 5000500000LL - 2000000);
 
-    // Sample data, worked out by hand from DemoData.cpp.
-    FinanceData demo;
-    DemoData::fill(demo);
-    CHECK(Balance::walletBalance(demo, "WAL001") == 730000);
-    CHECK(Balance::walletBalance(demo, "WAL002") == 47350000);
-    CHECK(Balance::walletBalance(demo, "WAL003") == -3500000);
-    CHECK(Balance::totalBalance(demo) == 44580000);
 }
 
 static void testSortedTransactions() {
@@ -1985,6 +1978,65 @@ static void testCrossTransactionsWithOtherModules() {
     CHECK(Balance::totalBalance(data) == 1000000);
 }
 
+static void testAuth() {
+    DynamicArray<User> users;
+    std::string message;
+
+    // Register: every rule of the form.
+    CHECK(!Auth::registerUser(users, "khoa", "   ", "secret1", "secret1", message) && message != "");
+    CHECK(!Auth::registerUser(users, "khoa", "A very long nickname here", "secret1", "secret1", message));
+    CHECK(!Auth::registerUser(users, "kh", "Khoa", "secret1", "secret1", message));
+    CHECK(!Auth::registerUser(users, "khoa nguyen", "Khoa", "secret1", "secret1", message));
+    CHECK(!Auth::registerUser(users, "khoa", "Khoa", "12345", "12345", message));
+    CHECK(!Auth::registerUser(users, "khoa", "Khoa", "secret1", "secret2", message));
+    CHECK(users.isEmpty());
+    CHECK(Auth::registerUser(users, "  Khoa_23 ", " Khoa ", "secret1", "secret1", message) && message == "");
+    CHECK(users.size() == 1);
+    CHECK(users[0].getUsername() == "Khoa_23" && users[0].getNickname() == "Khoa");
+    // The password itself is never stored.
+    CHECK(users[0].getPasswordHash() != "secret1" && users[0].getPasswordHash().size() == 16);
+    // Username already taken (case ignored).
+    CHECK(!Auth::registerUser(users, "khoa_23", "Other", "secret9", "secret9", message));
+    CHECK(Auth::registerUser(users, "quan", "Quan", "abcdef", "abcdef", message));
+
+    // Same password, different salt -> different hash.
+    CHECK(users[0].getSalt() != users[1].getSalt());
+    CHECK(Auth::hashPassword("abc123", "s1") == Auth::hashPassword("abc123", "s1"));
+    CHECK(Auth::hashPassword("abc123", "s1") != Auth::hashPassword("abc123", "s2"));
+    CHECK(Auth::hashPassword("abc123", "s1") != Auth::hashPassword("abc124", "s1"));
+
+    // Log in
+    CHECK(Auth::login(users, "khoa_23", "secret1", message) == 0 && message == "");
+    CHECK(Auth::login(users, "QUAN", "abcdef", message) == 1);
+    CHECK(Auth::login(users, "quan", "secret1", message) == -1 && message == "Wrong username or password.");
+    CHECK(Auth::login(users, "nobody", "abcdef", message) == -1 && message == "Wrong username or password.");
+    CHECK(Auth::login(users, "", "", message) == -1 && message != "");
+
+    // Each account has its own data file.
+    CHECK(Auth::dataFileFor("data/users", "Khoa_23") == "data/users/khoa_23.dat");
+    CHECK(Auth::dataFileFor("data/users", "quan") != Auth::dataFileFor("data/users", "khoa_23"));
+
+    // Save and load the account list.
+    const std::string path = "test_users.dat";
+    CHECK(Auth::saveUsers(users, path));
+    DynamicArray<User> loaded;
+    CHECK(Auth::loadUsers(loaded, path));
+    CHECK(loaded.size() == 2);
+    CHECK(loaded[0].getUsername() == "Khoa_23" && loaded[0].getNickname() == "Khoa");
+    CHECK(loaded[1].getPasswordHash() == users[1].getPasswordHash() && loaded[1].getSalt() == users[1].getSalt());
+    CHECK(Auth::login(loaded, "khoa_23", "secret1", message) == 0);
+
+    // Missing or damaged file: false, empty list, no crash.
+    std::remove(path.c_str());
+    CHECK(!Auth::loadUsers(loaded, path) && loaded.isEmpty());
+    {
+        std::ofstream out(path, std::ios::binary);
+        out << "not a users file";
+    }
+    CHECK(!Auth::loadUsers(loaded, path) && loaded.isEmpty());
+    std::remove(path.c_str());
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2018,6 +2070,7 @@ int main() {
     testCrossUpdateTransactions();
     testCrossDeleteTransactions();
     testCrossTransactionsWithOtherModules();
+    testAuth();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;

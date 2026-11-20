@@ -242,7 +242,8 @@ void dashboard(Gui::AppState& app) {
 
     const char* addIncome = ICON_FA_PLUS "  Add income";
     const char* addExpense = ICON_FA_MINUS "  Add expense";
-    Widgets::pageHeader("Dashboard", "Overview of all your wallets and this month's activity",
+    std::string greeting = "Hello, " + app.nickname + "!";
+    Widgets::pageHeader(greeting.c_str(), "Overview of all your wallets and this month's activity",
                         Widgets::buttonWidth(addIncome) + Widgets::buttonWidth(addExpense) + px(10));
     if (Widgets::button(addIncome, p.green)) openAddTransaction(true);
     ImGui::SameLine();

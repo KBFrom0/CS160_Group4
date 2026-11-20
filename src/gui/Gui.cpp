@@ -8,7 +8,7 @@
 #include "gui/Pages.h"
 #include "gui/Theme.h"
 #include "gui/Widgets.h"
-#include "DemoData.h"
+#include "Auth.h"
 #include "Recurring.h"
 #include "Storage.h"
 
@@ -88,28 +88,36 @@ namespace {
         ImGui::PopFont();
         ImGui::EndGroup();
 
-        // Right side: demo badge, date, theme toggle
-        std::string date = std::string(ICON_FA_CALENDAR "  ") + Date::today().toString();
-        float right = origin.x + width - px(24);
-        float toggleWidth = px(30);
-        float dateWidth = ImGui::CalcTextSize(date.c_str()).x;
-        float y = origin.y + (height - px(28)) * 0.5f;
+        // Right side, from right to left: theme toggle, log out, account, date
+        float x = origin.x + width - px(24);
+        float buttonSize = px(30);
+        float buttonY = origin.y + (height - px(28)) * 0.5f;
+        float textY = origin.y + (height - ImGui::GetTextLineHeight()) * 0.5f;
 
-        ImGui::SetCursorScreenPos(ImVec2(right - toggleWidth, y));
+        x -= buttonSize;
+        ImGui::SetCursorScreenPos(ImVec2(x, buttonY));
         if (Widgets::iconButton("theme", app.darkTheme ? ICON_FA_SUN : ICON_FA_MOON, p.textMuted,
                                 app.darkTheme ? "Switch to light mode" : "Switch to dark mode")) {
             Gui::setTheme(app, !app.darkTheme);
         }
-        ImGui::SetCursorScreenPos(ImVec2(right - toggleWidth - px(18) - dateWidth,
-                                         origin.y + (height - ImGui::GetTextLineHeight()) * 0.5f));
-        Widgets::mutedText(date);
-        if (app.demoMode) {
-            const char* text = ICON_FA_FLASK "  DEMO DATA";
-            float badgeWidth = ImGui::CalcTextSize(text).x + px(16);
-            ImGui::SetCursorScreenPos(ImVec2(right - toggleWidth - px(18) - dateWidth - px(18) - badgeWidth,
-                                             origin.y + (height - ImGui::GetTextLineHeight() - px(4)) * 0.5f));
-            Widgets::badge(text, p.orange);
+
+        x -= px(6) + buttonSize;
+        ImGui::SetCursorScreenPos(ImVec2(x, buttonY));
+        if (Widgets::iconButton("logout", ICON_FA_RIGHT_FROM_BRACKET, p.textMuted, "Log out")) {
+            Gui::logout(app);
         }
+
+        std::string account = std::string(ICON_FA_CIRCLE_USER "  ") + app.nickname;
+        x -= px(10) + ImGui::CalcTextSize(account.c_str()).x;
+        ImGui::SetCursorScreenPos(ImVec2(x, textY));
+        ImGui::TextUnformatted(account.c_str());
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Logged in as %s", app.username.c_str());
+
+        std::string date = std::string(ICON_FA_CALENDAR "  ") + Date::today().toString();
+        x -= px(24) + ImGui::CalcTextSize(date.c_str()).x;
+        ImGui::SetCursorScreenPos(ImVec2(x, textY));
+        Widgets::mutedText(date);
+
         ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + height));
     }
 
@@ -179,18 +187,29 @@ namespace {
 
 namespace Gui {
 
-void startup(AppState& app, bool demo) {
-    app.demoMode = demo;
-    app.dataFile = demo ? "data/demo.dat" : Storage::DEFAULT_FILE;
+void startup(AppState& app) {
+    app.usersFile = Auth::USERS_FILE;
+    app.usersDir = Auth::USERS_DIR;
     CreateDirectoryA("data", nullptr);
+    CreateDirectoryA(app.usersDir.c_str(), nullptr);
 
     loadSettings(app);
     applyTheme(app, app.darkTheme);
 
-    Storage::load(app.data, app.dataFile);
-    if (demo && app.data.wallets.isEmpty()) {
-        DemoData::fill(app.data);
-    }
+    Auth::loadUsers(app.users, app.usersFile);
+}
+
+void login(AppState& app, int index) {
+    const User& user = app.users[index];
+    app.username = user.getUsername();
+    app.nickname = user.getNickname();
+    app.dataFile = Auth::dataFileFor(app.usersDir, app.username);
+
+    app.data = FinanceData();
+    Storage::load(app.data, app.dataFile);   // a new account has no file yet: it starts empty
+    app.loggedIn = true;
+    app.page = Page::DASHBOARD;
+    Widgets::toast("Welcome, " + app.nickname + "!");
 
     Date today = Date::today();
     int added = Recurring::generateDueTransactions(app.data, today);
@@ -199,6 +218,18 @@ void startup(AppState& app, bool demo) {
         Widgets::toast(std::to_string(added) + " recurring transaction(s) were added for "
                        + today.toString().substr(3) + ".");
     }
+}
+
+void logout(AppState& app) {
+    save(app);
+    app.data = FinanceData();
+    app.loggedIn = false;
+    app.username = "";
+    app.nickname = "";
+    app.dataFile = "";
+    app.page = Page::DASHBOARD;
+    app.authScreen = AuthScreen::WELCOME;
+    Widgets::toast("You have been logged out.");
 }
 
 void frame(AppState& app) {
@@ -218,6 +249,13 @@ void frame(AppState& app) {
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar(4);
 
+    if (!app.loggedIn) {
+        Pages::auth(app);
+        ImGui::End();
+        Widgets::drawToasts();
+        return;
+    }
+
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     topBar(app);
     navBar(app);
@@ -230,11 +268,12 @@ void frame(AppState& app) {
 }
 
 void shutdown(AppState& app) {
-    save(app);
+    if (app.loggedIn) save(app);
     saveSettings(app);
 }
 
 void save(AppState& app) {
+    if (!app.loggedIn) return;
     Storage::save(app.data, app.dataFile);
 }
 

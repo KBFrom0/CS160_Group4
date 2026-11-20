@@ -19,8 +19,7 @@ Data is saved to a binary file.
 Install the requirements first: see **[REQUIREMENTS.md](REQUIREMENTS.md)** (only MSYS2 g++).
 
 ```bat
-run_demo.bat       :: build + open the app with sample data   (double-click)
-run.bat            :: build + open the app with your own data (double-click)
+run.bat            :: build + open the app (double-click)
 build.bat          :: only build -> bin\PersonalFinanceManager.exe
 build.bat test     :: build + run unit tests
 build.bat clean    :: delete bin\ (rebuilds the libraries next time)
@@ -28,9 +27,9 @@ build.bat clean    :: delete bin\ (rebuilds the libraries next time)
 
 The first build compiles the GUI libraries once (~2 minutes); later builds take a few seconds.
 
-- Normal mode stores data in `data/finance.dat`.
-- Demo mode (`--demo`) uses `data/demo.dat` with sample wallets, categories and transactions,
-  so your real data is never touched.
+- The app opens on a **Get Started** screen: create an account or log in.
+  Each account has its own data file: `data/users/<username>.dat` (accounts: `data/users.dat`,
+  passwords are stored as salted hashes).
 
 **CMake (optional):**
 ```bash
@@ -42,7 +41,8 @@ cmake --build build
 
 | Page | What it does |
 |------|--------------|
-| **Dashboard** | Total balance, this month's income / expense / savings, wallet balances (list + chart), recent transactions, last 6 months chart, recurring items |
+| **Get Started** | Team photos around the app logo; **Log in** / **Create account** (nickname, username, password) |
+| **Dashboard** | "Hello, *nickname*!", total balance, this month's income / expense / savings, wallet balances (list + chart), recent transactions, last 6 months chart, recurring items |
 | **Transactions** | Search and filter, add / edit / delete income and expense |
 | **Recurring** | Monthly recurring income/expense with start date and optional end date |
 | **Master Data** | Expense categories, income sources and wallets (add / rename / delete) |
@@ -67,7 +67,6 @@ CS160_Project/
 │   ├── Statistics.h          # Logic: date-range statistics       (Quan)
 │   ├── Recurring.h           # Logic: monthly recurring           (Khoa)
 │   ├── AnnualStatistics.h    # Logic: year-based statistics       (Khoa)
-│   ├── DemoData.h            # Sample data for --demo
 │   └── gui/                  # User interface (done)
 │       ├── Gui.h             # App state, top bar, navigation
 │       ├── Pages.h           # One function per page
@@ -77,6 +76,7 @@ CS160_Project/
 ├── tests/                    # Unit tests (test_core.cpp)
 ├── third_party/              # Dear ImGui, ImPlot, icon header (see REQUIREMENTS.md)
 ├── assets/fonts/             # Font Awesome icons
+├── assets/images/            # Team photos for the Get Started screen
 ├── data/                     # Runtime data files (not committed)
 └── docs/                     # Report, UML, work division
 ```

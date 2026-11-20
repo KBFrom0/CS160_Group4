@@ -1,5 +1,5 @@
 @echo off
-rem Build, then run the app. Extra arguments are passed to the app, e.g. run.bat --demo
+rem Build, then run the app.
 cd /d "%~dp0"
 call "%~dp0build.bat"
 if errorlevel 1 (

@@ -3,7 +3,7 @@ rem Build with g++ (MSYS2 UCRT64). See REQUIREMENTS.md.
 rem   build.bat         -> build the app into bin\
 rem   build.bat test    -> also build and run the unit tests
 rem   build.bat clean   -> delete bin\ (forces the libraries to be rebuilt)
-rem To build AND run the app, use run.bat / run_demo.bat instead.
+rem To build AND run the app, use run.bat instead.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set RESULT=0
@@ -26,7 +26,7 @@ if not exist bin\obj mkdir bin\obj
 if not exist data mkdir data
 
 set INC=-Iinclude -Ithird_party\imgui -Ithird_party\imgui\backends -Ithird_party\imgui\misc\cpp -Ithird_party\implot -Ithird_party\icons
-set LIBS=-mwindows -static -ld3d11 -ld3dcompiler -ldxgi -ldwmapi -lgdi32 -limm32
+set LIBS=-mwindows -static -ld3d11 -ld3dcompiler -ldxgi -ldwmapi -lgdi32 -limm32 -lwindowscodecs -lole32
 
 rem ---- 1. Libraries: compiled once and cached in bin\obj (takes ~2 minutes the first time) ----
 for %%f in (
