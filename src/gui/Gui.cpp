@@ -9,7 +9,6 @@
 #include "gui/Theme.h"
 #include "gui/Widgets.h"
 #include "Auth.h"
-#include "DemoData.h"
 #include "Recurring.h"
 #include "Storage.h"
 
@@ -89,7 +88,7 @@ namespace {
         ImGui::PopFont();
         ImGui::EndGroup();
 
-        // Right side, from right to left: theme toggle, log out, account, date, demo badge
+        // Right side, from right to left: theme toggle, log out, account, date
         float x = origin.x + width - px(24);
         float buttonSize = px(30);
         float buttonY = origin.y + (height - px(28)) * 0.5f;
@@ -119,12 +118,6 @@ namespace {
         ImGui::SetCursorScreenPos(ImVec2(x, textY));
         Widgets::mutedText(date);
 
-        if (app.demoMode) {
-            const char* text = ICON_FA_FLASK "  DEMO DATA";
-            x -= px(18) + ImGui::CalcTextSize(text).x + px(16);
-            ImGui::SetCursorScreenPos(ImVec2(x, origin.y + (height - ImGui::GetTextLineHeight() - px(4)) * 0.5f));
-            Widgets::badge(text, p.orange);
-        }
         ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + height));
     }
 
@@ -194,10 +187,9 @@ namespace {
 
 namespace Gui {
 
-void startup(AppState& app, bool demo) {
-    app.demoMode = demo;
-    app.usersFile = demo ? Auth::DEMO_USERS_FILE : Auth::USERS_FILE;
-    app.usersDir = demo ? Auth::DEMO_USERS_DIR : Auth::USERS_DIR;
+void startup(AppState& app) {
+    app.usersFile = Auth::USERS_FILE;
+    app.usersDir = Auth::USERS_DIR;
     CreateDirectoryA("data", nullptr);
     CreateDirectoryA(app.usersDir.c_str(), nullptr);
 
@@ -214,10 +206,7 @@ void login(AppState& app, int index) {
     app.dataFile = Auth::dataFileFor(app.usersDir, app.username);
 
     app.data = FinanceData();
-    bool hasFile = Storage::load(app.data, app.dataFile);
-    if (app.demoMode && !hasFile) {
-        DemoData::fill(app.data);   // a new account in demo mode starts with the sample data
-    }
+    Storage::load(app.data, app.dataFile);   // a new account has no file yet: it starts empty
     app.loggedIn = true;
     app.page = Page::DASHBOARD;
     Widgets::toast("Welcome, " + app.nickname + "!");

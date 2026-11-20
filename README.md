@@ -19,8 +19,7 @@ Data is saved to a binary file.
 Install the requirements first: see **[REQUIREMENTS.md](REQUIREMENTS.md)** (only MSYS2 g++).
 
 ```bat
-run_demo.bat       :: build + open the app with sample data   (double-click)
-run.bat            :: build + open the app with your own data (double-click)
+run.bat            :: build + open the app (double-click)
 build.bat          :: only build -> bin\PersonalFinanceManager.exe
 build.bat test     :: build + run unit tests
 build.bat clean    :: delete bin\ (rebuilds the libraries next time)
@@ -31,9 +30,6 @@ The first build compiles the GUI libraries once (~2 minutes); later builds take 
 - The app opens on a **Get Started** screen: create an account or log in.
   Each account has its own data file: `data/users/<username>.dat` (accounts: `data/users.dat`,
   passwords are stored as salted hashes).
-- Demo mode (`--demo`) keeps its own accounts (`data/demo_users.dat`, `data/demo_users/`), so your
-  real data is never touched. An account created in demo mode starts with sample wallets,
-  categories and transactions. Delete `data\demo_users.dat` and `data\demo_users\` to start over.
 
 **CMake (optional):**
 ```bash
@@ -71,7 +67,6 @@ CS160_Project/
 │   ├── Statistics.h          # Logic: date-range statistics       (Quan)
 │   ├── Recurring.h           # Logic: monthly recurring           (Khoa)
 │   ├── AnnualStatistics.h    # Logic: year-based statistics       (Khoa)
-│   ├── DemoData.h            # Sample data for --demo
 │   └── gui/                  # User interface (done)
 │       ├── Gui.h             # App state, top bar, navigation
 │       ├── Pages.h           # One function per page

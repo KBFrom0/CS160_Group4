@@ -49,7 +49,7 @@ void settings(Gui::AppState& app) {
         ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, px(150));
         ImGui::TableSetupColumn("v", ImGuiTableColumnFlags_WidthStretch);
         row("Account", app.nickname + "  (" + app.username + ")");
-        row("Data file", app.dataFile + (app.demoMode ? "   (demo)" : ""));
+        row("Data file", app.dataFile);
         row("Saved", "Automatically after every change and on exit");
         row("Records", std::to_string(data.incomes.size()) + " incomes, " +
                        std::to_string(data.expenses.size()) + " expenses, " +

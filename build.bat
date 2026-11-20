@@ -3,7 +3,7 @@ rem Build with g++ (MSYS2 UCRT64). See REQUIREMENTS.md.
 rem   build.bat         -> build the app into bin\
 rem   build.bat test    -> also build and run the unit tests
 rem   build.bat clean   -> delete bin\ (forces the libraries to be rebuilt)
-rem To build AND run the app, use run.bat / run_demo.bat instead.
+rem To build AND run the app, use run.bat instead.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set RESULT=0

@@ -15,14 +15,13 @@ namespace Gui {
     struct AppState {
         FinanceData data;               // data of the logged-in account
         std::string dataFile;
-        bool demoMode = false;
         bool darkTheme = false;
         Page page = Page::DASHBOARD;
         void* nativeWindow = nullptr;   // HWND, used to color the title bar
 
         // Accounts
         DynamicArray<User> users;
-        std::string usersFile;          // data/users.dat (demo: data/demo_users.dat)
+        std::string usersFile;          // data/users.dat
         std::string usersDir;           // folder with one data file per account
         bool loggedIn = false;
         std::string username;
@@ -31,7 +30,7 @@ namespace Gui {
     };
 
     // Loads settings and the account list. The finance data is loaded at login.
-    void startup(AppState& app, bool demo);
+    void startup(AppState& app);
     // Opens the account users[index]: loads its data and adds this month's
     // recurring transactions, then shows the Dashboard.
     void login(AppState& app, int index);

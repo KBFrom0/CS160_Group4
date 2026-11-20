@@ -139,20 +139,6 @@ namespace {
         if (linkButton(link)) goTo(app, target);
     }
 
-    void demoHint() {
-        const Theme::Palette& p = Theme::colors();
-        const char* text = ICON_FA_FLASK "  Demo mode: new accounts start with sample data.";
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        ImVec2 pos = ImGui::GetCursorScreenPos();
-        float width = ImGui::GetContentRegionAvail().x;
-        float height = ImGui::GetTextLineHeight() + px(16);
-        draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), Theme::toU32(p.orange, 0.14f), px(8));
-        ImGui::SetCursorScreenPos(ImVec2(pos.x + px(12), pos.y + px(8)));
-        ImGui::TextColored(p.orange, "%s", text);
-        ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + height));
-        ImGui::Dummy(ImVec2(0, 0));
-    }
-
     void backButton(Gui::AppState& app) {
         if (Widgets::ghostButton(ICON_FA_ARROW_LEFT "  Back")) goTo(app, Gui::AuthScreen::WELCOME);
         ImGui::Dummy(ImVec2(0, px(4)));
@@ -178,10 +164,6 @@ namespace {
         }
         if (Widgets::ghostButton(ICON_FA_USER_PLUS "  Create account", ImVec2(width, px(44)))) {
             goTo(app, Gui::AuthScreen::REGISTER);
-        }
-        if (app.demoMode) {
-            ImGui::Dummy(ImVec2(0, px(8)));
-            demoHint();
         }
     }
 

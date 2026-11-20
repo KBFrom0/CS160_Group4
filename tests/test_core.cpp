@@ -8,7 +8,6 @@
 #include "FinanceData.h"
 #include "Format.h"
 #include "Balance.h"
-#include "DemoData.h"
 #include "MasterData.h"
 #include "Recurring.h"
 #include "AnnualStatistics.h"
@@ -230,13 +229,6 @@ static void testBalance() {
     CHECK(Balance::walletBalance(data, "WAL999") == 123456);
     CHECK(Balance::totalBalance(data) == 1000000 + 5000500000LL - 2000000);
 
-    // Sample data, worked out by hand from DemoData.cpp.
-    FinanceData demo;
-    DemoData::fill(demo);
-    CHECK(Balance::walletBalance(demo, "WAL001") == 730000);
-    CHECK(Balance::walletBalance(demo, "WAL002") == 47350000);
-    CHECK(Balance::walletBalance(demo, "WAL003") == -3500000);
-    CHECK(Balance::totalBalance(demo) == 44580000);
 }
 
 static void testSortedTransactions() {

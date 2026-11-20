@@ -53,5 +53,5 @@ code still use our own `DynamicArray<T>` (no STL containers).
 
 ```bat
 build.bat          :: first time ~2 minutes (libraries), then a few seconds
-run_demo.bat       :: build + open the app with sample data
+run.bat            :: build + open the app
 ```

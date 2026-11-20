@@ -65,7 +65,7 @@ Tiếng Anh, bắt đầu bằng động từ, ngắn gọn:
 - Báo lỗi cho người dùng bằng cách trả `false` / `""` và ghi lý do vào `message`
   (ví dụ `MasterData::addItem`), giao diện sẽ hiện thông báo đỏ.
 - **Không sửa `src/gui/`** trừ khi đã báo nhóm.
-- Test bằng `run_demo.bat` (dữ liệu mẫu). Chỗ nào đang chờ hàm của bạn sẽ hiện `0`,
+- Test bằng `run.bat` (tạo một tài khoản rồi nhập dữ liệu thử). Chỗ nào đang chờ hàm của bạn sẽ hiện `0`,
   `(unknown)`, danh sách rỗng, hoặc dòng cam *"Waiting for ..."* / *"... is not implemented yet"*.
   Khi hàm chạy đúng, chỗ đó tự hiện số liệu.
 

@@ -8,13 +8,8 @@
 // Accounts: register, log in, and the file where each account keeps its data.
 // Logic only (no GUI), so it can be unit tested.
 namespace Auth {
-    // Normal mode
     const std::string USERS_FILE = "data/users.dat";
     const std::string USERS_DIR = "data/users";
-    // Demo mode (run_demo.bat) keeps its accounts apart from the real ones.
-    // A new account in demo mode starts with the sample data.
-    const std::string DEMO_USERS_FILE = "data/demo_users.dat";
-    const std::string DEMO_USERS_DIR = "data/demo_users";
 
     const int MIN_USERNAME = 3;
     const int MAX_USERNAME = 20;
