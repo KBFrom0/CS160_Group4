@@ -650,6 +650,35 @@ static void testMasterDataRemoveInUse() {
     CHECK(data.categories[0].getId() == "CAT004");
 }
 
+static void testMasterDataSourceIdNotReused() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Add three income sources.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Bonus", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Gift", message));
+
+    CHECK(data.sources.size() == 3);
+    CHECK(data.sources[1].getId() == "SRC002");
+
+    // Remove the middle source.
+    CHECK(MasterData::removeItem(data, Kind::SOURCE, "SRC002", message));
+    CHECK(message == "");
+    CHECK(data.sources.size() == 2);
+
+    // Add a new source. The deleted ID must not be reused.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Freelance", message));
+    CHECK(message == "");
+    CHECK(data.sources.size() == 3);
+
+    CHECK(data.sources[2].getId() == "SRC004");
+    CHECK(MasterData::findSourceIndex(data, "SRC002") == -1);
+    CHECK(MasterData::findSourceIndex(data, "SRC004") == 2);
+}
+
 static void testMasterDataRemoveMiddleItem() {
     using MasterData::Kind;
 
@@ -827,6 +856,7 @@ int main() {
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
     testMasterDataRemoveInUse();
+    testMasterDataSourceIdNotReused();
     testMasterDataRemoveMiddleItem();
     testBalanceAfterTransactionChanges();
     testBalanceNegativeWallet();
