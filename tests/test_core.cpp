@@ -547,6 +547,37 @@ static void testMasterDataDuplicateNames() {
     CHECK(data.wallets[0].getId() == "WAL001");
 }
 
+static void testMasterDataTabTrimming() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // A name containing only tabs must be rejected.
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "\t\t", message));
+    CHECK(message != "");
+    CHECK(data.wallets.isEmpty());
+
+    // Tabs around a valid name must be trimmed.
+    message = "";
+    CHECK(MasterData::addItem(data, Kind::WALLET, "\tCash\t", message));
+    CHECK(message == "");
+    CHECK(data.wallets.size() == 1);
+    CHECK(data.wallets[0].getName() == "Cash");
+
+    // A name containing only tabs must also be rejected when renaming.
+    message = "";
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL001", "\t\t", message));
+    CHECK(message != "");
+    CHECK(data.wallets[0].getName() == "Cash");
+
+    // Tabs and spaces around a new name must be trimmed.
+    message = "";
+    CHECK(MasterData::renameItem(data, Kind::WALLET, "WAL001", "\t Bank Account \t", message));
+    CHECK(message == "");
+    CHECK(data.wallets[0].getName() == "Bank Account");
+}
+
 static void testMasterDataRemoveInUse() {
     using MasterData::Kind;
     FinanceData data;
@@ -987,6 +1018,7 @@ int main() {
     testMasterDataLookup();
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
+    testMasterDataTabTrimming();
     testMasterDataRemoveInUse();
     testMasterDataSourceIdNotReused();
     testMasterDataRemoveMiddleItem();
