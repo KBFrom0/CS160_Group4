@@ -10,7 +10,7 @@
 namespace Gui {
     enum class Page { DASHBOARD, TRANSACTIONS, RECURRING, MASTER_DATA, STATISTICS, SETTINGS };
     // Screens shown before logging in.
-    enum class AuthScreen { WELCOME, LOGIN, REGISTER };
+    enum class AuthScreen { WELCOME, LOGIN, REGISTER, RESET };
 
     struct AppState {
         FinanceData data;               // data of the logged-in account

@@ -33,6 +33,15 @@ namespace Auth {
     int login(const DynamicArray<User>& users, const std::string& username, const std::string& password,
               std::string& message);
 
+    // Forgot password: the nickname must match the account (case ignored).
+    // Sets the new password; on failure returns false with a message.
+    bool resetPassword(DynamicArray<User>& users, const std::string& username, const std::string& nickname,
+                       const std::string& newPassword, const std::string& confirmPassword, std::string& message);
+
+    // Change password of users[index] after checking the current one.
+    bool changePassword(DynamicArray<User>& users, int index, const std::string& currentPassword,
+                        const std::string& newPassword, const std::string& confirmPassword, std::string& message);
+
     // Salted hash of a password (64-bit FNV-1a, repeated). Good enough for a class
     // project so passwords are not readable in the file; not a real security hash.
     std::string hashPassword(const std::string& password, const std::string& salt);

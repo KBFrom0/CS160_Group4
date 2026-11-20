@@ -2012,6 +2012,35 @@ static void testAuth() {
     CHECK(Auth::login(users, "nobody", "abcdef", message) == -1 && message == "Wrong username or password.");
     CHECK(Auth::login(users, "", "", message) == -1 && message != "");
 
+    // Forgot password: the nickname must match (case and spaces ignored).
+    CHECK(!Auth::resetPassword(users, "quan", "Khoa", "newpass1", "newpass1", message));
+    CHECK(message == "Username and nickname do not match.");
+    CHECK(!Auth::resetPassword(users, "nobody", "Quan", "newpass1", "newpass1", message));
+    CHECK(message == "Username and nickname do not match.");
+    CHECK(!Auth::resetPassword(users, "quan", "Quan", "short", "short", message));
+    CHECK(!Auth::resetPassword(users, "quan", "Quan", "newpass1", "newpass2", message));
+    CHECK(!Auth::resetPassword(users, "", "", "newpass1", "newpass1", message) && message != "");
+    CHECK(Auth::login(users, "quan", "abcdef", message) == 1);   // nothing changed yet
+    std::string oldSalt = users[1].getSalt();
+    CHECK(Auth::resetPassword(users, " QUAN ", "  quan ", "newpass1", "newpass1", message) && message == "");
+    CHECK(users[1].getSalt() != oldSalt);
+    CHECK(Auth::login(users, "quan", "abcdef", message) == -1);
+    CHECK(Auth::login(users, "quan", "newpass1", message) == 1);
+    CHECK(Auth::login(users, "khoa_23", "secret1", message) == 0);   // other account untouched
+
+    // Change password: the current password must be right.
+    CHECK(!Auth::changePassword(users, 0, "wrong!", "secret2", "secret2", message));
+    CHECK(message == "The current password is wrong.");
+    CHECK(!Auth::changePassword(users, 0, "secret1", "secret1", "secret1", message));
+    CHECK(!Auth::changePassword(users, 0, "secret1", "abc", "abc", message));
+    CHECK(!Auth::changePassword(users, 0, "secret1", "secret2", "secret3", message));
+    CHECK(!Auth::changePassword(users, 5, "secret1", "secret2", "secret2", message));
+    CHECK(Auth::login(users, "khoa_23", "secret1", message) == 0);   // still the old one
+    CHECK(Auth::changePassword(users, 0, "secret1", "secret2", "secret2", message) && message == "");
+    CHECK(Auth::login(users, "khoa_23", "secret1", message) == -1);
+    CHECK(Auth::login(users, "khoa_23", "secret2", message) == 0);
+    CHECK(Auth::changePassword(users, 0, "secret2", "secret1", "secret1", message));   // back for the tests below
+
     // Each account has its own data file.
     CHECK(Auth::dataFileFor("data/users", "Khoa_23") == "data/users/khoa_23.dat");
     CHECK(Auth::dataFileFor("data/users", "quan") != Auth::dataFileFor("data/users", "khoa_23"));
