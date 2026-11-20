@@ -94,13 +94,6 @@ namespace {
             }
         }
 
-        // Caption under the orbit
-        const char* caption = "OUR TEAM";
-        ImFont* bold = Theme::boldFont();
-        float captionSize = px(Theme::FONT_SMALL);
-        ImVec2 dim = bold->CalcTextSizeA(captionSize, 1000.0f, 0.0f, caption);
-        draw->AddText(bold, captionSize, ImVec2(center.x - dim.x * 0.5f, center.y + radius + avatar + px(34)),
-                      IM_COL32(255, 255, 255, 200), caption);
     }
 
     // ---------- Right half helpers ----------
@@ -157,7 +150,6 @@ namespace {
         Widgets::badge("CS160  ·  GROUP 4", p.blue);
         ImGui::Dummy(ImVec2(0, px(4)));
         title("Personal Finance Manager", 34.0f);
-        subtitle("Track your income, expenses, wallets and monthly payments, all in one place.");
         ImGui::Dummy(ImVec2(0, px(18)));
         if (Widgets::button(ICON_FA_RIGHT_TO_BRACKET "  Log in", p.blue, ImVec2(width, px(44)))) {
             goTo(app, Gui::AuthScreen::LOGIN);
