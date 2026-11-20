@@ -1309,6 +1309,149 @@ static void testCrossAddTransactions() {
     CHECK(data.nextExpenseNo == 13);
 }
 
+static Date crossRefDate(const FinanceData& data, const Transactions::TransactionRef& ref) {
+    if (ref.isIncome) {
+        return data.incomes[ref.index].getDate();
+    }
+    return data.expenses[ref.index].getDate();
+}
+
+// True if every income and every expense appears exactly once in the list.
+static bool crossEveryOnce(const FinanceData& data, const DynamicArray<Transactions::TransactionRef>& refs) {
+    if (refs.size() != data.incomes.size() + data.expenses.size()) {
+        return false;
+    }
+    DynamicArray<int> seenIncome;
+    DynamicArray<int> seenExpense;
+    for (int i = 0; i < data.incomes.size(); i++) seenIncome.add(0);
+    for (int i = 0; i < data.expenses.size(); i++) seenExpense.add(0);
+
+    for (int i = 0; i < refs.size(); i++) {
+        if (refs[i].isIncome) {
+            if (refs[i].index < 0 || refs[i].index >= data.incomes.size()) return false;
+            seenIncome.set(refs[i].index, seenIncome[refs[i].index] + 1);
+        } else {
+            if (refs[i].index < 0 || refs[i].index >= data.expenses.size()) return false;
+            seenExpense.set(refs[i].index, seenExpense[refs[i].index] + 1);
+        }
+    }
+    for (int i = 0; i < seenIncome.size(); i++) {
+        if (seenIncome[i] != 1) return false;
+    }
+    for (int i = 0; i < seenExpense.size(); i++) {
+        if (seenExpense[i] != 1) return false;
+    }
+    return true;
+}
+
+// True if no transaction is older than the one before it.
+static bool crossNewestFirst(const FinanceData& data, const DynamicArray<Transactions::TransactionRef>& refs) {
+    for (int i = 1; i < refs.size(); i++) {
+        if (crossRefDate(data, refs[i - 1]) < crossRefDate(data, refs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void testCrossSortedOrder() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+
+    // Nothing to sort.
+    CHECK(Transactions::getSortedTransactions(data).isEmpty());
+
+    // Only incomes, added in a mixed order.
+    data.incomes.add(Income("INC0001", Date(5, 3, 2026), "SRC001", 10, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(1, 3, 2026), "SRC001", 10, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(9, 3, 2026), "SRC001", 10, "WAL001", ""));
+    DynamicArray<Transactions::TransactionRef> refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(crossNewestFirst(data, refs));
+    if (refs.size() == 3) {
+        CHECK(refs[0].index == 2);
+        CHECK(refs[1].index == 0);
+        CHECK(refs[2].index == 1);
+    }
+
+    // Only expenses.
+    FinanceData onlyExpenses;
+    onlyExpenses.expenses.add(Expense("EXP0001", Date(1, 1, 2026), "CAT001", 10, "WAL001", ""));
+    onlyExpenses.expenses.add(Expense("EXP0002", Date(2, 1, 2026), "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(onlyExpenses);
+    CHECK(crossEveryOnce(onlyExpenses, refs));
+    if (refs.size() == 2) {
+        CHECK(!refs[0].isIncome && refs[0].index == 1);
+        CHECK(!refs[1].isIncome && refs[1].index == 0);
+    }
+
+    // Incomes and expenses mixed, across month and year borders.
+    FinanceData mixed;
+    mixed.expenses.add(Expense("EXP0001", Date(31, 12, 2025), "CAT001", 10, "WAL001", ""));
+    mixed.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 10, "WAL001", ""));
+    mixed.expenses.add(Expense("EXP0002", Date(28, 2, 2026), "CAT001", 10, "WAL001", ""));
+    mixed.incomes.add(Income("INC0002", Date(1, 3, 2026), "SRC001", 10, "WAL001", ""));
+    mixed.expenses.add(Expense("EXP0003", Date(15, 6, 2024), "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(mixed);
+    CHECK(crossEveryOnce(mixed, refs));
+    if (refs.size() == 5) {
+        CHECK(refs[0].isIncome && refs[0].index == 1);    // 01/03/2026
+        CHECK(!refs[1].isIncome && refs[1].index == 1);   // 28/02/2026
+        CHECK(refs[2].isIncome && refs[2].index == 0);    // 01/01/2026
+        CHECK(!refs[3].isIncome && refs[3].index == 0);   // 31/12/2025
+        CHECK(!refs[4].isIncome && refs[4].index == 2);   // 15/06/2024
+    }
+
+    // Same date: both types stay together between the newer and the older ones.
+    FinanceData sameDay;
+    Date tenth(10, 10, 2026);
+    sameDay.incomes.add(Income("INC0001", tenth, "SRC001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0001", Date(9, 10, 2026), "CAT001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0002", tenth, "CAT001", 10, "WAL001", ""));
+    sameDay.incomes.add(Income("INC0002", tenth, "SRC001", 10, "WAL001", ""));
+    sameDay.incomes.add(Income("INC0003", Date(11, 10, 2026), "SRC001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0003", tenth, "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(sameDay);
+    CHECK(crossEveryOnce(sameDay, refs));
+    CHECK(crossNewestFirst(sameDay, refs));
+    if (refs.size() == 6) {
+        CHECK(crossRefDate(sameDay, refs[0]) == Date(11, 10, 2026));
+        CHECK(crossRefDate(sameDay, refs[1]) == tenth);
+        CHECK(crossRefDate(sameDay, refs[4]) == tenth);
+        CHECK(crossRefDate(sameDay, refs[5]) == Date(9, 10, 2026));
+    }
+
+    // A longer list.
+    FinanceData big;
+    for (int i = 0; i < 60; i++) {
+        Date date((i * 7) % 28 + 1, (i * 5) % 12 + 1, 2023 + i % 4);
+        if (i % 2 == 0) {
+            big.incomes.add(Income("INC", date, "SRC001", 10, "WAL001", ""));
+        } else {
+            big.expenses.add(Expense("EXP", date, "CAT001", 10, "WAL001", ""));
+        }
+    }
+    refs = Transactions::getSortedTransactions(big);
+    CHECK(refs.size() == 60);
+    CHECK(crossEveryOnce(big, refs));
+    CHECK(crossNewestFirst(big, refs));
+
+    // The order follows new and deleted transactions.
+    std::string newest = Transactions::addIncomeRecord(data, Date(1, 1, 2030), "SRC001", 10, "WAL001", "");
+    refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(refs[0].isIncome && data.incomes[refs[0].index].getId() == newest);
+
+    Transactions::TransactionRef top = refs[0];
+    CHECK(Transactions::deleteTransaction(data, top));
+    refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(crossNewestFirst(data, refs));
+    CHECK(!(refs[0].isIncome && data.incomes[refs[0].index].getId() == newest));
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -1332,6 +1475,7 @@ int main() {
     testAnnualStatisticsEdgeCases();
     testStorageEdgeCases();
     testCrossAddTransactions();
+    testCrossSortedOrder();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
