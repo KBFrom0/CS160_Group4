@@ -106,10 +106,15 @@ static void testMasterDataLookup() {
     data.wallets.add(Wallet("WAL001", "Cash"));
     data.wallets.add(Wallet("WAL002", "Bank Account"));
 
-    // Found at the first, middle and last position.
+    // Find the first, middle and last item in each list.
     CHECK(MasterData::findCategoryIndex(data, "CAT001") == 0);
+    CHECK(MasterData::findCategoryIndex(data, "CAT002") == 1);
+
+    CHECK(MasterData::findSourceIndex(data, "SRC001") == 0);
     CHECK(MasterData::findSourceIndex(data, "SRC002") == 1);
     CHECK(MasterData::findSourceIndex(data, "SRC003") == 2);
+
+    CHECK(MasterData::findWalletIndex(data, "WAL001") == 0);
     CHECK(MasterData::findWalletIndex(data, "WAL002") == 1);
 
     // Not found: unknown id, empty id, wrong case, id of another list.
