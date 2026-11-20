@@ -1590,6 +1590,79 @@ static void testCrossUpdateTransactions() {
     CHECK(!refs[0].isIncome && refs[0].index == 0);
 }
 
+static void testCrossDeleteTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    Date day(10, 11, 2026);
+    for (int i = 1; i <= 5; i++) {
+        Transactions::addIncomeRecord(data, day, "SRC001", 1000 * i, "WAL001", "");
+    }
+    for (int i = 1; i <= 3; i++) {
+        Transactions::addExpenseRecord(data, day, "CAT001", 100 * i, "WAL001", "");
+    }
+    CHECK(data.incomes.size() == 5);
+    CHECK(data.expenses.size() == 3);
+
+    Transactions::TransactionRef ref;
+
+    // A wrong index changes nothing.
+    ref.isIncome = true;  ref.index = -1;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = true;  ref.index = 5;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = false; ref.index = -1;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = false; ref.index = 3;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 5);
+    CHECK(data.expenses.size() == 3);
+
+    // Deleting an income does not touch the expenses.
+    ref.isIncome = true;  ref.index = 2;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 4);
+    CHECK(data.expenses.size() == 3);
+    CHECK(data.incomes[0].getId() == "INC0001");
+    CHECK(data.incomes[1].getId() == "INC0002");
+    CHECK(data.incomes[2].getId() == "INC0004");
+    CHECK(data.incomes[3].getId() == "INC0005");
+
+    // Deleting an expense does not touch the incomes.
+    ref.isIncome = false; ref.index = 0;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.expenses.size() == 2);
+    CHECK(data.incomes.size() == 4);
+    CHECK(data.expenses[0].getId() == "EXP0002");
+    CHECK(data.expenses[1].getId() == "EXP0003");
+
+    // Delete the last income: the old last index is wrong now.
+    ref.isIncome = true;  ref.index = 3;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 3);
+    CHECK(data.incomes[2].getId() == "INC0004");
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 3);
+
+    // The sorted list only contains what is left.
+    DynamicArray<Transactions::TransactionRef> refs = Transactions::getSortedTransactions(data);
+    CHECK(refs.size() == 5);
+
+    // Delete everything: the lists are empty and the ID counters keep counting.
+    while (!data.incomes.isEmpty()) {
+        ref.isIncome = true;  ref.index = 0;
+        CHECK(Transactions::deleteTransaction(data, ref));
+    }
+    while (!data.expenses.isEmpty()) {
+        ref.isIncome = false; ref.index = 0;
+        CHECK(Transactions::deleteTransaction(data, ref));
+    }
+    CHECK(Transactions::getSortedTransactions(data).isEmpty());
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 1000, "WAL001", "") == "INC0006");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0004");
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -1615,6 +1688,7 @@ int main() {
     testCrossAddTransactions();
     testCrossSortedOrder();
     testCrossUpdateTransactions();
+    testCrossDeleteTransactions();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
