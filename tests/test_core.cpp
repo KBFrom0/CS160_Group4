@@ -1227,6 +1227,88 @@ static void testStorageEdgeCases() {
     std::remove(validPath.c_str());
 }
 
+// ===== Week 4: cross test of Transactions (Kien's module) =====
+static void testCrossAddTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    Date day(10, 11, 2026);
+
+    // The first IDs have 4 digits and start at 0001.
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 5000000, "WAL001", "Salary") == "INC0001");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 30000, "WAL001", "Lunch") == "EXP0001");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 1, "WAL001", "") == "INC0002");
+    CHECK(data.incomes.size() == 2);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.nextIncomeNo == 3);
+    CHECK(data.nextExpenseNo == 2);
+
+    // The saved transaction keeps every value that was passed in.
+    CHECK(data.incomes[0].getDate() == day);
+    CHECK(data.incomes[0].getSourceId() == "SRC001");
+    CHECK(data.incomes[0].getAmount() == 5000000);
+    CHECK(data.incomes[0].getWalletId() == "WAL001");
+    CHECK(data.incomes[0].getDescription() == "Salary");
+    CHECK(data.incomes[0].getRecurringId() == "");
+    CHECK(data.expenses[0].getCategoryId() == "CAT001");
+    CHECK(data.expenses[0].getDescription() == "Lunch");
+
+    // An empty description is allowed.
+    CHECK(data.incomes[1].getDescription() == "");
+
+    // Amounts above the int range must not overflow.
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 5000000000LL, "WAL001", "Big") == "EXP0002");
+    CHECK(data.expenses[1].getAmount() == 5000000000LL);
+
+    // Bad input: nothing is added and no ID is used up.
+    int incomesBefore = data.incomes.size();
+    int expensesBefore = data.expenses.size();
+    int nextIncomeBefore = data.nextIncomeNo;
+    int nextExpenseBefore = data.nextExpenseNo;
+
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 0, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", -100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(31, 4, 2026), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(29, 2, 2026), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(1, 1, 1800), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC999", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "CAT001", 100, "WAL001", "") == "");  // a category id is not a source
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL999", "") == "");
+
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 0, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", -100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, Date(31, 4, 2026), "CAT001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT999", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "SRC001", 100, "WAL001", "") == "");  // a source id is not a category
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL999", "") == "");
+
+    CHECK(data.incomes.size() == incomesBefore);
+    CHECK(data.expenses.size() == expensesBefore);
+    CHECK(data.nextIncomeNo == nextIncomeBefore);
+    CHECK(data.nextExpenseNo == nextExpenseBefore);
+
+    // The next good transaction gets the next number (no gap).
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL001", "") == "INC0003");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0003");
+
+    // A deleted ID is never used again.
+    Transactions::TransactionRef last;
+    last.isIncome = true;
+    last.index = data.incomes.size() - 1;
+    CHECK(Transactions::deleteTransaction(data, last));
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL001", "") == "INC0004");
+
+    // The number comes from the counter (for example one loaded from a file).
+    data.nextExpenseNo = 12;
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0012");
+    CHECK(data.nextExpenseNo == 13);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -1249,6 +1331,7 @@ int main() {
     testRecurringEdgeCases();
     testAnnualStatisticsEdgeCases();
     testStorageEdgeCases();
+    testCrossAddTransactions();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
