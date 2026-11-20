@@ -650,6 +650,54 @@ static void testMasterDataRemoveInUse() {
     CHECK(data.categories[0].getId() == "CAT004");
 }
 
+static void testMasterDataRemoveMiddleItem() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create three items in each list.
+    MasterData::addItem(data, Kind::CATEGORY, "Food", message);
+    MasterData::addItem(data, Kind::CATEGORY, "Rent", message);
+    MasterData::addItem(data, Kind::CATEGORY, "Travel", message);
+
+    MasterData::addItem(data, Kind::SOURCE, "Salary", message);
+    MasterData::addItem(data, Kind::SOURCE, "Bonus", message);
+    MasterData::addItem(data, Kind::SOURCE, "Gift", message);
+
+    MasterData::addItem(data, Kind::WALLET, "Cash", message);
+    MasterData::addItem(data, Kind::WALLET, "Bank", message);
+    MasterData::addItem(data, Kind::WALLET, "Savings", message);
+
+    // Remove the middle item from each list.
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT002", message));
+    CHECK(MasterData::removeItem(data, Kind::SOURCE, "SRC002", message));
+    CHECK(MasterData::removeItem(data, Kind::WALLET, "WAL002", message));
+
+    // Check the remaining items and their order.
+    CHECK(data.categories.size() == 2);
+    CHECK(data.categories[0].getId() == "CAT001");
+    CHECK(data.categories[1].getId() == "CAT003");
+
+    CHECK(data.sources.size() == 2);
+    CHECK(data.sources[0].getId() == "SRC001");
+    CHECK(data.sources[1].getId() == "SRC003");
+
+    CHECK(data.wallets.size() == 2);
+    CHECK(data.wallets[0].getId() == "WAL001");
+    CHECK(data.wallets[1].getId() == "WAL003");
+
+    // The deleted IDs can no longer be found.
+    CHECK(MasterData::findCategoryIndex(data, "CAT002") == -1);
+    CHECK(MasterData::findSourceIndex(data, "SRC002") == -1);
+    CHECK(MasterData::findWalletIndex(data, "WAL002") == -1);
+
+    // The remaining IDs are found at their new positions.
+    CHECK(MasterData::findCategoryIndex(data, "CAT003") == 1);
+    CHECK(MasterData::findSourceIndex(data, "SRC003") == 1);
+    CHECK(MasterData::findWalletIndex(data, "WAL003") == 1);
+}
+
 static void testBalanceAfterTransactionChanges() {
     FinanceData data;
     data.sources.add(IncomeSource("SRC001", "Salary"));
@@ -779,6 +827,7 @@ int main() {
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
     testMasterDataRemoveInUse();
+    testMasterDataRemoveMiddleItem();
     testBalanceAfterTransactionChanges();
     testBalanceNegativeWallet();
 
