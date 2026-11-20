@@ -531,6 +531,12 @@ static void testMasterDataDuplicateNames() {
     CHECK(MasterData::renameItem(data, Kind::SOURCE, "SRC001", "  Pay  ", message));
     CHECK(data.sources[0].getName() == "Pay");
 
+    // renameItem: category can be renamed successfully.
+    CHECK(MasterData::renameItem(data, Kind::CATEGORY, "CAT001", "  Groceries  ", message));
+    CHECK(message == "");
+    CHECK(data.categories[0].getName() == "Groceries");
+    CHECK(data.categories[0].getId() == "CAT001");
+
     // renameItem: unknown id -> rejected with a message.
     message = "";
     CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL999", "Anything", message));
