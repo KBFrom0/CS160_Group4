@@ -775,6 +775,48 @@ static void testMasterDataInUseAfterTransactionDeletion() {
     CHECK(!MasterData::isWalletInUse(data, "WAL002"));
 }
 
+static void testMasterDataInUseAfterIncomeUpdate() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create two sources and two wallets.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Bonus", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", message));
+
+    // Create an income using the first source and wallet.
+    data.incomes.add(Income(
+        "INC001", Date(1, 1, 2025), "SRC001",
+        100000, "WAL001", "Original income"
+    ));
+
+    // Initially, the first source and wallet are in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+
+    CHECK(!MasterData::isSourceInUse(data, "SRC002"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+
+    // Update the income to use the second source and wallet.
+    Income updatedIncome(
+        "INC001", Date(2, 1, 2025), "SRC002",
+        200000, "WAL002", "Updated income"
+    );
+
+    CHECK(Transactions::updateIncome(data, 0, updatedIncome));
+
+    // The old source and wallet are no longer in use.
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+
+    // The new source and wallet are now in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC002"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+}
+
 static void testBalanceAfterTransactionChanges() {
     FinanceData data;
     data.sources.add(IncomeSource("SRC001", "Salary"));
@@ -907,6 +949,7 @@ int main() {
     testMasterDataSourceIdNotReused();
     testMasterDataRemoveMiddleItem();
     testMasterDataInUseAfterTransactionDeletion();
+    testMasterDataInUseAfterIncomeUpdate();
     testBalanceAfterTransactionChanges();
     testBalanceNegativeWallet();
 
