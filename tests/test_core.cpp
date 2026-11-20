@@ -727,6 +727,54 @@ static void testMasterDataRemoveMiddleItem() {
     CHECK(MasterData::findWalletIndex(data, "WAL003") == 1);
 }
 
+static void testMasterDataInUseAfterTransactionDeletion() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create master data.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Food", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", message));
+
+    // Create one income and one expense in different wallets.
+    data.incomes.add(Income(
+        "INC0001", Date(1, 3, 2026), "SRC001", 1000, "WAL001", ""
+    ));
+
+    data.expenses.add(Expense(
+        "EXP0001", Date(2, 3, 2026), "CAT001", 200, "WAL002", ""
+    ));
+
+    // Both transactions make their related items in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+
+    // Delete the income.
+    Transactions::TransactionRef income = {true, 0};
+    CHECK(Transactions::deleteTransaction(data, income));
+
+    // Its source and wallet are no longer in use.
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+
+    // The expense still uses its category and wallet.
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+
+    // Delete the expense.
+    Transactions::TransactionRef expense = {false, 0};
+    CHECK(Transactions::deleteTransaction(data, expense));
+
+    // All related items are now unused.
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+}
+
 static void testBalanceAfterTransactionChanges() {
     FinanceData data;
     data.sources.add(IncomeSource("SRC001", "Salary"));
@@ -858,6 +906,7 @@ int main() {
     testMasterDataRemoveInUse();
     testMasterDataSourceIdNotReused();
     testMasterDataRemoveMiddleItem();
+    testMasterDataInUseAfterTransactionDeletion();
     testBalanceAfterTransactionChanges();
     testBalanceNegativeWallet();
 
