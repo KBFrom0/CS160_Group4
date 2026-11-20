@@ -1227,6 +1227,513 @@ static void testStorageEdgeCases() {
     std::remove(validPath.c_str());
 }
 
+// ===== Week 4: cross test of Transactions (Kien's module) =====
+static void testCrossAddTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    Date day(10, 11, 2026);
+
+    // The first IDs have 4 digits and start at 0001.
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 5000000, "WAL001", "Salary") == "INC0001");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 30000, "WAL001", "Lunch") == "EXP0001");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 1, "WAL001", "") == "INC0002");
+    CHECK(data.incomes.size() == 2);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.nextIncomeNo == 3);
+    CHECK(data.nextExpenseNo == 2);
+
+    // The saved transaction keeps every value that was passed in.
+    CHECK(data.incomes[0].getDate() == day);
+    CHECK(data.incomes[0].getSourceId() == "SRC001");
+    CHECK(data.incomes[0].getAmount() == 5000000);
+    CHECK(data.incomes[0].getWalletId() == "WAL001");
+    CHECK(data.incomes[0].getDescription() == "Salary");
+    CHECK(data.incomes[0].getRecurringId() == "");
+    CHECK(data.expenses[0].getCategoryId() == "CAT001");
+    CHECK(data.expenses[0].getDescription() == "Lunch");
+
+    // An empty description is allowed.
+    CHECK(data.incomes[1].getDescription() == "");
+
+    // Amounts above the int range must not overflow.
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 5000000000LL, "WAL001", "Big") == "EXP0002");
+    CHECK(data.expenses[1].getAmount() == 5000000000LL);
+
+    // Bad input: nothing is added and no ID is used up.
+    int incomesBefore = data.incomes.size();
+    int expensesBefore = data.expenses.size();
+    int nextIncomeBefore = data.nextIncomeNo;
+    int nextExpenseBefore = data.nextExpenseNo;
+
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 0, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", -100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(31, 4, 2026), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(29, 2, 2026), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, Date(1, 1, 1800), "SRC001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC999", 100, "WAL001", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "CAT001", 100, "WAL001", "") == "");  // a category id is not a source
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "", "") == "");
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL999", "") == "");
+
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 0, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", -100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, Date(31, 4, 2026), "CAT001", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT999", 100, "WAL001", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "SRC001", 100, "WAL001", "") == "");  // a source id is not a category
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "", "") == "");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL999", "") == "");
+
+    CHECK(data.incomes.size() == incomesBefore);
+    CHECK(data.expenses.size() == expensesBefore);
+    CHECK(data.nextIncomeNo == nextIncomeBefore);
+    CHECK(data.nextExpenseNo == nextExpenseBefore);
+
+    // The next good transaction gets the next number (no gap).
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL001", "") == "INC0003");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0003");
+
+    // A deleted ID is never used again.
+    Transactions::TransactionRef last;
+    last.isIncome = true;
+    last.index = data.incomes.size() - 1;
+    CHECK(Transactions::deleteTransaction(data, last));
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 100, "WAL001", "") == "INC0004");
+
+    // The number comes from the counter (for example one loaded from a file).
+    data.nextExpenseNo = 12;
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0012");
+    CHECK(data.nextExpenseNo == 13);
+}
+
+static Date crossRefDate(const FinanceData& data, const Transactions::TransactionRef& ref) {
+    if (ref.isIncome) {
+        return data.incomes[ref.index].getDate();
+    }
+    return data.expenses[ref.index].getDate();
+}
+
+// True if every income and every expense appears exactly once in the list.
+static bool crossEveryOnce(const FinanceData& data, const DynamicArray<Transactions::TransactionRef>& refs) {
+    if (refs.size() != data.incomes.size() + data.expenses.size()) {
+        return false;
+    }
+    DynamicArray<int> seenIncome;
+    DynamicArray<int> seenExpense;
+    for (int i = 0; i < data.incomes.size(); i++) seenIncome.add(0);
+    for (int i = 0; i < data.expenses.size(); i++) seenExpense.add(0);
+
+    for (int i = 0; i < refs.size(); i++) {
+        if (refs[i].isIncome) {
+            if (refs[i].index < 0 || refs[i].index >= data.incomes.size()) return false;
+            seenIncome.set(refs[i].index, seenIncome[refs[i].index] + 1);
+        } else {
+            if (refs[i].index < 0 || refs[i].index >= data.expenses.size()) return false;
+            seenExpense.set(refs[i].index, seenExpense[refs[i].index] + 1);
+        }
+    }
+    for (int i = 0; i < seenIncome.size(); i++) {
+        if (seenIncome[i] != 1) return false;
+    }
+    for (int i = 0; i < seenExpense.size(); i++) {
+        if (seenExpense[i] != 1) return false;
+    }
+    return true;
+}
+
+// True if no transaction is older than the one before it.
+static bool crossNewestFirst(const FinanceData& data, const DynamicArray<Transactions::TransactionRef>& refs) {
+    for (int i = 1; i < refs.size(); i++) {
+        if (crossRefDate(data, refs[i - 1]) < crossRefDate(data, refs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void testCrossSortedOrder() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+
+    // Nothing to sort.
+    CHECK(Transactions::getSortedTransactions(data).isEmpty());
+
+    // Only incomes, added in a mixed order.
+    data.incomes.add(Income("INC0001", Date(5, 3, 2026), "SRC001", 10, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(1, 3, 2026), "SRC001", 10, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(9, 3, 2026), "SRC001", 10, "WAL001", ""));
+    DynamicArray<Transactions::TransactionRef> refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(crossNewestFirst(data, refs));
+    if (refs.size() == 3) {
+        CHECK(refs[0].index == 2);
+        CHECK(refs[1].index == 0);
+        CHECK(refs[2].index == 1);
+    }
+
+    // Only expenses.
+    FinanceData onlyExpenses;
+    onlyExpenses.expenses.add(Expense("EXP0001", Date(1, 1, 2026), "CAT001", 10, "WAL001", ""));
+    onlyExpenses.expenses.add(Expense("EXP0002", Date(2, 1, 2026), "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(onlyExpenses);
+    CHECK(crossEveryOnce(onlyExpenses, refs));
+    if (refs.size() == 2) {
+        CHECK(!refs[0].isIncome && refs[0].index == 1);
+        CHECK(!refs[1].isIncome && refs[1].index == 0);
+    }
+
+    // Incomes and expenses mixed, across month and year borders.
+    FinanceData mixed;
+    mixed.expenses.add(Expense("EXP0001", Date(31, 12, 2025), "CAT001", 10, "WAL001", ""));
+    mixed.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 10, "WAL001", ""));
+    mixed.expenses.add(Expense("EXP0002", Date(28, 2, 2026), "CAT001", 10, "WAL001", ""));
+    mixed.incomes.add(Income("INC0002", Date(1, 3, 2026), "SRC001", 10, "WAL001", ""));
+    mixed.expenses.add(Expense("EXP0003", Date(15, 6, 2024), "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(mixed);
+    CHECK(crossEveryOnce(mixed, refs));
+    if (refs.size() == 5) {
+        CHECK(refs[0].isIncome && refs[0].index == 1);    // 01/03/2026
+        CHECK(!refs[1].isIncome && refs[1].index == 1);   // 28/02/2026
+        CHECK(refs[2].isIncome && refs[2].index == 0);    // 01/01/2026
+        CHECK(!refs[3].isIncome && refs[3].index == 0);   // 31/12/2025
+        CHECK(!refs[4].isIncome && refs[4].index == 2);   // 15/06/2024
+    }
+
+    // Same date: both types stay together between the newer and the older ones.
+    FinanceData sameDay;
+    Date tenth(10, 10, 2026);
+    sameDay.incomes.add(Income("INC0001", tenth, "SRC001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0001", Date(9, 10, 2026), "CAT001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0002", tenth, "CAT001", 10, "WAL001", ""));
+    sameDay.incomes.add(Income("INC0002", tenth, "SRC001", 10, "WAL001", ""));
+    sameDay.incomes.add(Income("INC0003", Date(11, 10, 2026), "SRC001", 10, "WAL001", ""));
+    sameDay.expenses.add(Expense("EXP0003", tenth, "CAT001", 10, "WAL001", ""));
+    refs = Transactions::getSortedTransactions(sameDay);
+    CHECK(crossEveryOnce(sameDay, refs));
+    CHECK(crossNewestFirst(sameDay, refs));
+    if (refs.size() == 6) {
+        CHECK(crossRefDate(sameDay, refs[0]) == Date(11, 10, 2026));
+        CHECK(crossRefDate(sameDay, refs[1]) == tenth);
+        CHECK(crossRefDate(sameDay, refs[4]) == tenth);
+        CHECK(crossRefDate(sameDay, refs[5]) == Date(9, 10, 2026));
+    }
+
+    // A longer list.
+    FinanceData big;
+    for (int i = 0; i < 60; i++) {
+        Date date((i * 7) % 28 + 1, (i * 5) % 12 + 1, 2023 + i % 4);
+        if (i % 2 == 0) {
+            big.incomes.add(Income("INC", date, "SRC001", 10, "WAL001", ""));
+        } else {
+            big.expenses.add(Expense("EXP", date, "CAT001", 10, "WAL001", ""));
+        }
+    }
+    refs = Transactions::getSortedTransactions(big);
+    CHECK(refs.size() == 60);
+    CHECK(crossEveryOnce(big, refs));
+    CHECK(crossNewestFirst(big, refs));
+
+    // The order follows new and deleted transactions.
+    std::string newest = Transactions::addIncomeRecord(data, Date(1, 1, 2030), "SRC001", 10, "WAL001", "");
+    refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(refs[0].isIncome && data.incomes[refs[0].index].getId() == newest);
+
+    Transactions::TransactionRef top = refs[0];
+    CHECK(Transactions::deleteTransaction(data, top));
+    refs = Transactions::getSortedTransactions(data);
+    CHECK(crossEveryOnce(data, refs));
+    CHECK(crossNewestFirst(data, refs));
+    CHECK(!(refs[0].isIncome && data.incomes[refs[0].index].getId() == newest));
+}
+
+static bool crossIncomeIsOriginal(const FinanceData& data) {
+    const Income& a = data.incomes[0];
+    const Income& b = data.incomes[1];
+    return a.getId() == "INC0001" && a.getDate() == Date(1, 5, 2026) && a.getSourceId() == "SRC001" &&
+           a.getAmount() == 100000 && a.getWalletId() == "WAL001" && a.getDescription() == "Old" &&
+           a.getRecurringId() == "REC001" &&
+           b.getId() == "INC0002" && b.getDate() == Date(2, 5, 2026) && b.getSourceId() == "SRC002" &&
+           b.getAmount() == 200000 && b.getWalletId() == "WAL002" && b.getDescription() == "Other";
+}
+
+static bool crossExpenseIsOriginal(const FinanceData& data) {
+    const Expense& a = data.expenses[0];
+    const Expense& b = data.expenses[1];
+    return a.getId() == "EXP0001" && a.getDate() == Date(3, 5, 2026) && a.getCategoryId() == "CAT001" &&
+           a.getAmount() == 50000 && a.getWalletId() == "WAL001" && a.getDescription() == "Old" &&
+           a.getRecurringId() == "REC002" &&
+           b.getId() == "EXP0002" && b.getDate() == Date(4, 5, 2026) && b.getCategoryId() == "CAT002" &&
+           b.getAmount() == 60000 && b.getWalletId() == "WAL002" && b.getDescription() == "Other";
+}
+
+static void testCrossUpdateTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Bonus"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.categories.add(ExpenseCategory("CAT002", "Transport"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+    data.incomes.add(Income("INC0001", Date(1, 5, 2026), "SRC001", 100000, "WAL001", "Old", "REC001"));
+    data.incomes.add(Income("INC0002", Date(2, 5, 2026), "SRC002", 200000, "WAL002", "Other"));
+    data.expenses.add(Expense("EXP0001", Date(3, 5, 2026), "CAT001", 50000, "WAL001", "Old", "REC002"));
+    data.expenses.add(Expense("EXP0002", Date(4, 5, 2026), "CAT002", 60000, "WAL002", "Other"));
+
+    // ----- Income: a bad update is refused and changes nothing -----
+    Income good = data.incomes[0];
+    Income bad = good;
+
+    bad = good; bad.setAmount(0);
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setAmount(-1);
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setDate(Date(30, 2, 2026));
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setSourceId("");
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setSourceId("SRC999");
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setSourceId("CAT001");
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setWalletId("");
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    bad = good; bad.setWalletId("WAL999");
+    CHECK(!Transactions::updateIncome(data, 0, bad));
+    CHECK(!Transactions::updateIncome(data, -1, good));
+    CHECK(!Transactions::updateIncome(data, 2, good));
+    CHECK(crossIncomeIsOriginal(data));
+
+    // ----- Income: good updates change only that income -----
+    Income changed = good;
+    changed.setAmount(150000);
+    CHECK(Transactions::updateIncome(data, 0, changed));
+    CHECK(data.incomes[0].getAmount() == 150000);
+    CHECK(data.incomes[0].getId() == "INC0001");
+    CHECK(data.incomes[0].getWalletId() == "WAL001");
+    CHECK(data.incomes[0].getDescription() == "Old");
+    CHECK(data.incomes[1].getAmount() == 200000);
+
+    changed = data.incomes[0];
+    changed.setWalletId("WAL002");
+    changed.setSourceId("SRC002");
+    changed.setDate(Date(20, 5, 2026));
+    changed.setDescription("New");
+    CHECK(Transactions::updateIncome(data, 0, changed));
+    CHECK(data.incomes[0].getWalletId() == "WAL002");
+    CHECK(data.incomes[0].getSourceId() == "SRC002");
+    CHECK(data.incomes[0].getDate() == Date(20, 5, 2026));
+    CHECK(data.incomes[0].getDescription() == "New");
+    CHECK(data.incomes[0].getAmount() == 150000);
+    CHECK(data.incomes[0].getRecurringId() == "REC001");
+    CHECK(data.incomes[1].getId() == "INC0002");
+    CHECK(data.incomes[1].getAmount() == 200000);
+
+    // Update the second income: the first one stays as it is.
+    Income second = data.incomes[1];
+    second.setAmount(1);
+    CHECK(Transactions::updateIncome(data, 1, second));
+    CHECK(data.incomes[1].getAmount() == 1);
+    CHECK(data.incomes[0].getAmount() == 150000);
+
+    // ----- Expense: a bad update is refused and changes nothing -----
+    Expense goodExpense = data.expenses[0];
+    Expense badExpense = goodExpense;
+
+    badExpense = goodExpense; badExpense.setAmount(0);
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setAmount(-1);
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setDate(Date(30, 2, 2026));
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setCategoryId("");
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setCategoryId("CAT999");
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setCategoryId("SRC001");
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setWalletId("");
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    badExpense = goodExpense; badExpense.setWalletId("WAL999");
+    CHECK(!Transactions::updateExpense(data, 0, badExpense));
+    CHECK(!Transactions::updateExpense(data, -1, goodExpense));
+    CHECK(!Transactions::updateExpense(data, 2, goodExpense));
+    CHECK(crossExpenseIsOriginal(data));
+
+    // ----- Expense: good updates change only that expense -----
+    Expense changedExpense = goodExpense;
+    changedExpense.setCategoryId("CAT002");
+    changedExpense.setWalletId("WAL002");
+    changedExpense.setAmount(75000);
+    changedExpense.setDescription("New");
+    CHECK(Transactions::updateExpense(data, 0, changedExpense));
+    CHECK(data.expenses[0].getCategoryId() == "CAT002");
+    CHECK(data.expenses[0].getWalletId() == "WAL002");
+    CHECK(data.expenses[0].getAmount() == 75000);
+    CHECK(data.expenses[0].getDescription() == "New");
+    CHECK(data.expenses[0].getId() == "EXP0001");
+    CHECK(data.expenses[0].getRecurringId() == "REC002");
+    CHECK(data.expenses[1].getId() == "EXP0002");
+    CHECK(data.expenses[1].getAmount() == 60000);
+
+    // A new date moves the transaction in the sorted list.
+    changedExpense = data.expenses[0];
+    changedExpense.setDate(Date(1, 1, 2030));
+    CHECK(Transactions::updateExpense(data, 0, changedExpense));
+    DynamicArray<Transactions::TransactionRef> refs = Transactions::getSortedTransactions(data);
+    CHECK(refs.size() == 4);
+    CHECK(!refs[0].isIncome && refs[0].index == 0);
+}
+
+static void testCrossDeleteTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    Date day(10, 11, 2026);
+    for (int i = 1; i <= 5; i++) {
+        Transactions::addIncomeRecord(data, day, "SRC001", 1000 * i, "WAL001", "");
+    }
+    for (int i = 1; i <= 3; i++) {
+        Transactions::addExpenseRecord(data, day, "CAT001", 100 * i, "WAL001", "");
+    }
+    CHECK(data.incomes.size() == 5);
+    CHECK(data.expenses.size() == 3);
+
+    Transactions::TransactionRef ref;
+
+    // A wrong index changes nothing.
+    ref.isIncome = true;  ref.index = -1;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = true;  ref.index = 5;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = false; ref.index = -1;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    ref.isIncome = false; ref.index = 3;
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 5);
+    CHECK(data.expenses.size() == 3);
+
+    // Deleting an income does not touch the expenses.
+    ref.isIncome = true;  ref.index = 2;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 4);
+    CHECK(data.expenses.size() == 3);
+    CHECK(data.incomes[0].getId() == "INC0001");
+    CHECK(data.incomes[1].getId() == "INC0002");
+    CHECK(data.incomes[2].getId() == "INC0004");
+    CHECK(data.incomes[3].getId() == "INC0005");
+
+    // Deleting an expense does not touch the incomes.
+    ref.isIncome = false; ref.index = 0;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.expenses.size() == 2);
+    CHECK(data.incomes.size() == 4);
+    CHECK(data.expenses[0].getId() == "EXP0002");
+    CHECK(data.expenses[1].getId() == "EXP0003");
+
+    // Delete the last income: the old last index is wrong now.
+    ref.isIncome = true;  ref.index = 3;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 3);
+    CHECK(data.incomes[2].getId() == "INC0004");
+    CHECK(!Transactions::deleteTransaction(data, ref));
+    CHECK(data.incomes.size() == 3);
+
+    // The sorted list only contains what is left.
+    DynamicArray<Transactions::TransactionRef> refs = Transactions::getSortedTransactions(data);
+    CHECK(refs.size() == 5);
+
+    // Delete everything: the lists are empty and the ID counters keep counting.
+    while (!data.incomes.isEmpty()) {
+        ref.isIncome = true;  ref.index = 0;
+        CHECK(Transactions::deleteTransaction(data, ref));
+    }
+    while (!data.expenses.isEmpty()) {
+        ref.isIncome = false; ref.index = 0;
+        CHECK(Transactions::deleteTransaction(data, ref));
+    }
+    CHECK(Transactions::getSortedTransactions(data).isEmpty());
+    CHECK(Transactions::addIncomeRecord(data, day, "SRC001", 1000, "WAL001", "") == "INC0006");
+    CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0004");
+}
+
+static void testCrossTransactionsWithOtherModules() {
+    FinanceData data;
+    std::string message;
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Cash", message);
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Bank", message);
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Spare", message);
+    MasterData::addItem(data, MasterData::Kind::SOURCE, "Salary", message);
+    MasterData::addItem(data, MasterData::Kind::CATEGORY, "Food", message);
+    MasterData::addItem(data, MasterData::Kind::CATEGORY, "Rent", message);
+    Date day(10, 11, 2026);
+
+    // Nothing uses the master data yet.
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+
+    Transactions::addIncomeRecord(data, day, "SRC001", 1000000, "WAL001", "");   // INC0001
+    Transactions::addExpenseRecord(data, day, "CAT001", 300000, "WAL001", "");   // EXP0001
+    Transactions::addIncomeRecord(data, day, "SRC001", 500000, "WAL002", "");    // INC0002
+
+    // The balances follow the new transactions.
+    CHECK(Balance::walletBalance(data, "WAL001") == 700000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 500000);
+    CHECK(Balance::walletBalance(data, "WAL003") == 0);
+    CHECK(Balance::totalBalance(data) == 1200000);
+
+    // Names and usage are found through the IDs.
+    CHECK(MasterData::getWalletName(data, data.incomes[0].getWalletId()) == "Cash");
+    CHECK(MasterData::getSourceName(data, data.incomes[0].getSourceId()) == "Salary");
+    CHECK(MasterData::getCategoryName(data, data.expenses[0].getCategoryId()) == "Food");
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL003"));
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT002"));
+
+    // Moving the expense to another wallet moves its money too.
+    Expense moved = data.expenses[0];
+    moved.setWalletId("WAL002");
+    CHECK(Transactions::updateExpense(data, 0, moved));
+    CHECK(Balance::walletBalance(data, "WAL001") == 1000000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 200000);
+    CHECK(Balance::totalBalance(data) == 1200000);
+
+    // Deleting an income lowers the balance; a wallet may go below zero.
+    Transactions::TransactionRef ref;
+    ref.isIncome = true;
+    ref.index = 1;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(Balance::walletBalance(data, "WAL002") == -300000);
+    CHECK(Balance::totalBalance(data) == 700000);
+
+    // A wallet used by a transaction cannot be removed.
+    CHECK(!MasterData::removeItem(data, MasterData::Kind::WALLET, "WAL002", message));
+    CHECK(message != "");
+    CHECK(data.wallets.size() == 3);
+
+    // Once the last transaction using it is deleted, it can be removed.
+    ref.isIncome = false;
+    ref.index = 0;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::removeItem(data, MasterData::Kind::WALLET, "WAL002", message));
+    CHECK(MasterData::removeItem(data, MasterData::Kind::CATEGORY, "CAT001", message));
+    CHECK(message == "");
+    CHECK(data.wallets.size() == 2);
+    CHECK(Balance::totalBalance(data) == 1000000);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -1249,6 +1756,11 @@ int main() {
     testRecurringEdgeCases();
     testAnnualStatisticsEdgeCases();
     testStorageEdgeCases();
+    testCrossAddTransactions();
+    testCrossSortedOrder();
+    testCrossUpdateTransactions();
+    testCrossDeleteTransactions();
+    testCrossTransactionsWithOtherModules();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
