@@ -1663,6 +1663,77 @@ static void testCrossDeleteTransactions() {
     CHECK(Transactions::addExpenseRecord(data, day, "CAT001", 100, "WAL001", "") == "EXP0004");
 }
 
+static void testCrossTransactionsWithOtherModules() {
+    FinanceData data;
+    std::string message;
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Cash", message);
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Bank", message);
+    MasterData::addItem(data, MasterData::Kind::WALLET, "Spare", message);
+    MasterData::addItem(data, MasterData::Kind::SOURCE, "Salary", message);
+    MasterData::addItem(data, MasterData::Kind::CATEGORY, "Food", message);
+    MasterData::addItem(data, MasterData::Kind::CATEGORY, "Rent", message);
+    Date day(10, 11, 2026);
+
+    // Nothing uses the master data yet.
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+
+    Transactions::addIncomeRecord(data, day, "SRC001", 1000000, "WAL001", "");   // INC0001
+    Transactions::addExpenseRecord(data, day, "CAT001", 300000, "WAL001", "");   // EXP0001
+    Transactions::addIncomeRecord(data, day, "SRC001", 500000, "WAL002", "");    // INC0002
+
+    // The balances follow the new transactions.
+    CHECK(Balance::walletBalance(data, "WAL001") == 700000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 500000);
+    CHECK(Balance::walletBalance(data, "WAL003") == 0);
+    CHECK(Balance::totalBalance(data) == 1200000);
+
+    // Names and usage are found through the IDs.
+    CHECK(MasterData::getWalletName(data, data.incomes[0].getWalletId()) == "Cash");
+    CHECK(MasterData::getSourceName(data, data.incomes[0].getSourceId()) == "Salary");
+    CHECK(MasterData::getCategoryName(data, data.expenses[0].getCategoryId()) == "Food");
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL003"));
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT002"));
+
+    // Moving the expense to another wallet moves its money too.
+    Expense moved = data.expenses[0];
+    moved.setWalletId("WAL002");
+    CHECK(Transactions::updateExpense(data, 0, moved));
+    CHECK(Balance::walletBalance(data, "WAL001") == 1000000);
+    CHECK(Balance::walletBalance(data, "WAL002") == 200000);
+    CHECK(Balance::totalBalance(data) == 1200000);
+
+    // Deleting an income lowers the balance; a wallet may go below zero.
+    Transactions::TransactionRef ref;
+    ref.isIncome = true;
+    ref.index = 1;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(Balance::walletBalance(data, "WAL002") == -300000);
+    CHECK(Balance::totalBalance(data) == 700000);
+
+    // A wallet used by a transaction cannot be removed.
+    CHECK(!MasterData::removeItem(data, MasterData::Kind::WALLET, "WAL002", message));
+    CHECK(message != "");
+    CHECK(data.wallets.size() == 3);
+
+    // Once the last transaction using it is deleted, it can be removed.
+    ref.isIncome = false;
+    ref.index = 0;
+    CHECK(Transactions::deleteTransaction(data, ref));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::removeItem(data, MasterData::Kind::WALLET, "WAL002", message));
+    CHECK(MasterData::removeItem(data, MasterData::Kind::CATEGORY, "CAT001", message));
+    CHECK(message == "");
+    CHECK(data.wallets.size() == 2);
+    CHECK(Balance::totalBalance(data) == 1000000);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -1689,6 +1760,7 @@ int main() {
     testCrossSortedOrder();
     testCrossUpdateTransactions();
     testCrossDeleteTransactions();
+    testCrossTransactionsWithOtherModules();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
