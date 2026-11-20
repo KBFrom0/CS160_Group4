@@ -22,8 +22,9 @@ namespace {
     // Form state
     std::string loginUser, loginPassword, loginError;
     std::string regNickname, regUser, regPassword, regConfirm, regError;
+    std::string resetUser, resetNickname, resetPassword, resetConfirm, resetError;
     bool focusFirstField = false;
-    float formHeight[3] = { 0, 0, 0 };   // measured last frame, used to center the form
+    float formHeight[4] = { 0, 0, 0, 0 };   // measured last frame, used to center the form
 
     void loadImages() {
         if (imagesLoaded) return;
@@ -41,6 +42,9 @@ namespace {
         loginPassword = "";
         regPassword = "";
         regConfirm = "";
+        resetError = "";
+        resetPassword = "";
+        resetConfirm = "";
         focusFirstField = true;
     }
 
@@ -132,8 +136,8 @@ namespace {
         if (linkButton(link)) goTo(app, target);
     }
 
-    void backButton(Gui::AppState& app) {
-        if (Widgets::ghostButton(ICON_FA_ARROW_LEFT "  Back")) goTo(app, Gui::AuthScreen::WELCOME);
+    void backButton(Gui::AppState& app, Gui::AuthScreen target = Gui::AuthScreen::WELCOME) {
+        if (Widgets::ghostButton(ICON_FA_ARROW_LEFT "  Back")) goTo(app, target);
         ImGui::Dummy(ImVec2(0, px(4)));
     }
 
@@ -171,6 +175,12 @@ namespace {
         Widgets::textInput("##loginUser", loginUser, "Your username");
         Widgets::fieldLabel("PASSWORD");
         bool enter = Widgets::passwordInput("##loginPassword", loginPassword, "Your password");
+        const char* forgot = "Forgot password?";
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(forgot).x);
+        if (linkButton(forgot)) {
+            resetUser = loginUser;
+            goTo(app, Gui::AuthScreen::RESET);
+        }
         Widgets::formError(loginError);
         ImGui::Dummy(ImVec2(0, px(6)));
 
@@ -221,6 +231,44 @@ namespace {
         ImGui::Dummy(ImVec2(0, px(4)));
         footerLink("Already have an account?", "Log in", app, Gui::AuthScreen::LOGIN);
     }
+
+    void resetForm(Gui::AppState& app, float width) {
+        const Theme::Palette& p = Theme::colors();
+        backButton(app, Gui::AuthScreen::LOGIN);
+        title("Reset your password", Theme::FONT_HUGE);
+        subtitle("Enter your username and the nickname of the account, then choose a new password.");
+        ImGui::Dummy(ImVec2(0, px(8)));
+
+        Widgets::fieldLabel("USERNAME");
+        focusHere();
+        Widgets::textInput("##resetUser", resetUser, "Your username");
+        Widgets::fieldLabel("NICKNAME");
+        Widgets::textInput("##resetNickname", resetNickname, "The nickname of the account");
+        Widgets::fieldLabel("NEW PASSWORD");
+        bool enter = Widgets::passwordInput("##resetPassword", resetPassword, "At least 6 characters");
+        Widgets::fieldLabel("CONFIRM NEW PASSWORD");
+        enter = Widgets::passwordInput("##resetConfirm", resetConfirm, "Type the password again") || enter;
+        Widgets::formError(resetError);
+        ImGui::Dummy(ImVec2(0, px(6)));
+
+        if (Widgets::button(ICON_FA_KEY "  Reset password", p.blue, ImVec2(width, px(44))) || enter) {
+            DynamicArray<User> backup = app.users;
+            if (Auth::resetPassword(app.users, resetUser, resetNickname, resetPassword, resetConfirm, resetError)) {
+                if (!Auth::saveUsers(app.users, app.usersFile)) {
+                    app.users = backup;
+                    resetError = "Could not save the new password to " + app.usersFile + ".";
+                } else {
+                    loginUser = resetUser;
+                    resetNickname = "";
+                    goTo(app, Gui::AuthScreen::LOGIN);
+                    Widgets::toast("Password changed. Please log in.");
+                    return;
+                }
+            }
+        }
+        ImGui::Dummy(ImVec2(0, px(4)));
+        footerLink("Remembered it?", "Log in", app, Gui::AuthScreen::LOGIN);
+    }
 }
 
 namespace Pages {
@@ -251,6 +299,7 @@ void auth(Gui::AppState& app) {
         case Gui::AuthScreen::WELCOME:  welcome(app, formWidth); break;
         case Gui::AuthScreen::LOGIN:    loginForm(app, formWidth); break;
         case Gui::AuthScreen::REGISTER: registerForm(app, formWidth); break;
+        case Gui::AuthScreen::RESET:    resetForm(app, formWidth); break;
     }
     formHeight[screen] = ImGui::GetCursorPosY();
     ImGui::EndChild();

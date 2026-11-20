@@ -21,6 +21,10 @@ public:
     std::string getNickname() const { return nickname; }
     std::string getSalt() const { return salt; }
     std::string getPasswordHash() const { return passwordHash; }
+    void setPassword(const std::string& newSalt, const std::string& newHash) {
+        salt = newSalt;
+        passwordHash = newHash;
+    }
 };
 
 #endif

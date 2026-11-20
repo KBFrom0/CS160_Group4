@@ -4,6 +4,7 @@
 #include "IconsFontAwesome6.h"
 #include "gui/Theme.h"
 #include "gui/Widgets.h"
+#include "Auth.h"
 
 using Theme::px;
 
@@ -16,6 +17,43 @@ namespace {
         ImGui::TableNextColumn();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(value.c_str());
+    }
+
+    std::string currentPassword, newPassword, confirmPassword, passwordError;
+
+    // "Change password" dialog. Saves the account list and goes back to the Dashboard.
+    void changePasswordDialog(Gui::AppState& app) {
+        const Theme::Palette& p = Theme::colors();
+        if (!Widgets::beginModal("Change password###changePassword", 440)) return;
+
+        Widgets::fieldLabel("CURRENT PASSWORD");
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+        bool enter = Widgets::passwordInput("##currentPassword", currentPassword, "Your current password");
+        Widgets::fieldLabel("NEW PASSWORD");
+        enter = Widgets::passwordInput("##newPassword", newPassword, "At least 6 characters") || enter;
+        Widgets::fieldLabel("CONFIRM NEW PASSWORD");
+        enter = Widgets::passwordInput("##confirmPassword", confirmPassword, "Type the new password again") || enter;
+        Widgets::formError(passwordError);
+        ImGui::Spacing();
+
+        const char* saveLabel = ICON_FA_CHECK "  Change password";
+        Widgets::alignRight(Widgets::buttonWidth("Cancel") + Widgets::buttonWidth(saveLabel) + px(10));
+        if (Widgets::ghostButton("Cancel")) ImGui::CloseCurrentPopup();
+        ImGui::SameLine();
+        if (Widgets::button(saveLabel, p.blue) || enter) {
+            int index = Auth::findUser(app.users, app.username);
+            DynamicArray<User> backup = app.users;
+            if (Auth::changePassword(app.users, index, currentPassword, newPassword, confirmPassword, passwordError)) {
+                if (!Auth::saveUsers(app.users, app.usersFile)) {
+                    app.users = backup;
+                    passwordError = "Could not save the new password to " + app.usersFile + ".";
+                } else {
+                    ImGui::CloseCurrentPopup();
+                    Gui::finishAction(app, "Password changed.");
+                }
+            }
+        }
+        Widgets::endModal();
     }
 }
 
@@ -48,7 +86,6 @@ void settings(Gui::AppState& app) {
     if (ImGui::BeginTable("##data", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, px(150));
         ImGui::TableSetupColumn("v", ImGuiTableColumnFlags_WidthStretch);
-        row("Account", app.nickname + "  (" + app.username + ")");
         row("Data file", app.dataFile);
         row("Saved", "Automatically after every change and on exit");
         row("Records", std::to_string(data.incomes.size()) + " incomes, " +
@@ -56,6 +93,20 @@ void settings(Gui::AppState& app) {
                        std::to_string(data.recurrings.size()) + " recurring");
         ImGui::EndTable();
     }
+    Widgets::endCard();
+
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + gap - ImGui::GetStyle().ItemSpacing.y);
+
+    // Account
+    Widgets::beginCard("##account");
+    Widgets::cardTitle(ICON_FA_CIRCLE_USER, "Account");
+    Widgets::mutedText("Logged in as " + app.nickname + "  (username: " + app.username + ")");
+    ImGui::Spacing();
+    if (Widgets::ghostButton(ICON_FA_KEY "  Change password")) {
+        currentPassword = newPassword = confirmPassword = passwordError = "";
+        ImGui::OpenPopup("###changePassword");
+    }
+    changePasswordDialog(app);
     Widgets::endCard();
 
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + gap - ImGui::GetStyle().ItemSpacing.y);

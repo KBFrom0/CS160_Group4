@@ -25,6 +25,23 @@ namespace {
         return result;
     }
 
+    bool checkNewPassword(const std::string& password, const std::string& confirmPassword, std::string& message) {
+        if ((int)password.size() < MIN_PASSWORD) {
+            message = "The password must have at least " + std::to_string(MIN_PASSWORD) + " characters.";
+            return false;
+        }
+        if (password != confirmPassword) {
+            message = "The two passwords do not match.";
+            return false;
+        }
+        return true;
+    }
+
+    void setNewPassword(User& user, const std::string& password) {
+        std::string salt = makeSalt();
+        user.setPassword(salt, hashPassword(password, salt));
+    }
+
     bool isUsernameChar(char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '.';
     }
@@ -124,14 +141,7 @@ bool registerUser(DynamicArray<User>& users, const std::string& username, const 
         message = "The username \"" + user + "\" is already taken.";
         return false;
     }
-    if ((int)password.size() < MIN_PASSWORD) {
-        message = "The password must have at least " + std::to_string(MIN_PASSWORD) + " characters.";
-        return false;
-    }
-    if (password != confirmPassword) {
-        message = "The two passwords do not match.";
-        return false;
-    }
+    if (!checkNewPassword(password, confirmPassword, message)) return false;
 
     std::string salt = makeSalt();
     users.add(User(user, name, salt, hashPassword(password, salt)));
@@ -152,6 +162,47 @@ int login(const DynamicArray<User>& users, const std::string& username, const st
     }
     message = "";
     return index;
+}
+
+bool resetPassword(DynamicArray<User>& users, const std::string& username, const std::string& nickname,
+                   const std::string& newPassword, const std::string& confirmPassword, std::string& message) {
+    if (trim(username).empty() || trim(nickname).empty()) {
+        message = "Please enter your username and nickname.";
+        return false;
+    }
+    int index = findUser(users, username);
+    // Same message whether the username exists or not.
+    if (index == -1 || toLower(trim(nickname)) != toLower(users[index].getNickname())) {
+        message = "Username and nickname do not match.";
+        return false;
+    }
+    if (!checkNewPassword(newPassword, confirmPassword, message)) return false;
+
+    setNewPassword(users[index], newPassword);
+    message = "";
+    return true;
+}
+
+bool changePassword(DynamicArray<User>& users, int index, const std::string& currentPassword,
+                    const std::string& newPassword, const std::string& confirmPassword, std::string& message) {
+    if (index < 0 || index >= users.size()) {
+        message = "Account not found.";
+        return false;
+    }
+    User& user = users[index];
+    if (hashPassword(currentPassword, user.getSalt()) != user.getPasswordHash()) {
+        message = "The current password is wrong.";
+        return false;
+    }
+    if (!checkNewPassword(newPassword, confirmPassword, message)) return false;
+    if (newPassword == currentPassword) {
+        message = "The new password must be different from the current one.";
+        return false;
+    }
+
+    setNewPassword(user, newPassword);
+    message = "";
+    return true;
 }
 
 std::string hashPassword(const std::string& password, const std::string& salt) {
