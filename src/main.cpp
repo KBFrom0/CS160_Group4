@@ -1,8 +1,8 @@
 // Entry point: creates the Windows window + DirectX 11 device and runs the GUI loop.
 // Based on the official Dear ImGui "example_win32_directx11".
 //
-// Usage:  PersonalFinanceManager.exe          -> normal mode (data/finance.dat)
-//         PersonalFinanceManager.exe --demo   -> sample data (data/demo.dat)
+// Usage:  PersonalFinanceManager.exe          -> normal mode (accounts in data/users.dat)
+//         PersonalFinanceManager.exe --demo   -> demo mode (account demo / demo123, data/demo.dat)
 #include <string>
 #include <windows.h>
 #include <d3d11.h>
@@ -11,6 +11,7 @@
 #include "imgui_impl_dx11.h"
 #include "implot.h"
 #include "gui/Gui.h"
+#include "gui/Images.h"
 #include "gui/Theme.h"
 
 namespace {
@@ -145,6 +146,8 @@ int main(int argc, char* argv[]) {
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(device, deviceContext);
     Theme::init(dpiScale);
+
+    Images::init(device);
 
     Gui::AppState app;
     app.nativeWindow = hwnd;

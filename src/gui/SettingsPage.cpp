@@ -31,7 +31,7 @@ void settings(Gui::AppState& app) {
     float half = (ImGui::GetContentRegionAvail().x - gap) * 0.5f;
 
     // Appearance
-    Widgets::beginCard("##appearance", ImVec2(half, px(200)));
+    Widgets::beginCard("##appearance", ImVec2(half, px(240)));
     Widgets::cardTitle(ICON_FA_PALETTE, "Appearance");
     Widgets::mutedText("Choose how the app looks. Saved for next time.");
     ImGui::Spacing();
@@ -43,11 +43,12 @@ void settings(Gui::AppState& app) {
     ImGui::SameLine(0, gap);
 
     // Data
-    Widgets::beginCard("##dataInfo", ImVec2(0, px(200)));
+    Widgets::beginCard("##dataInfo", ImVec2(0, px(240)));
     Widgets::cardTitle(ICON_FA_DATABASE, "Data");
     if (ImGui::BeginTable("##data", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, px(150));
         ImGui::TableSetupColumn("v", ImGuiTableColumnFlags_WidthStretch);
+        row("Account", app.nickname + "  (" + app.username + ")");
         row("Data file", app.dataFile + (app.demoMode ? "   (demo)" : ""));
         row("Saved", "Automatically after every change and on exit");
         row("Records", std::to_string(data.incomes.size()) + " incomes, " +

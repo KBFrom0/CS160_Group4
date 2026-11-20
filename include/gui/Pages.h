@@ -7,6 +7,9 @@
 
 // One function per page. Each page file keeps its own UI state.
 namespace Pages {
+    // Get Started, Log in and Create account (shown until someone logs in).
+    void auth(Gui::AppState& app);
+
     void dashboard(Gui::AppState& app);
     void transactions(Gui::AppState& app);
     void recurring(Gui::AppState& app);

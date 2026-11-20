@@ -47,6 +47,8 @@ namespace Widgets {
     bool dateInput(const char* id, Date& date, float width = -1.0f);
     bool amountInput(const char* id, long long& amount);
     bool textInput(const char* id, std::string& text, const char* hint = "");
+    // Hidden text. Returns true when Enter is pressed in the field.
+    bool passwordInput(const char* id, std::string& text, const char* hint = "");
     // Combo with the names of a master data list. `id` is the selected ID ("" = none).
     bool masterCombo(const char* id, const FinanceData& data, MasterData::Kind kind,
                      std::string& selectedId, const char* placeholder);

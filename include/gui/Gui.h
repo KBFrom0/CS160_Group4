@@ -2,23 +2,41 @@
 #define GUI_GUI_H
 
 #include <string>
+#include "DynamicArray.h"
 #include "FinanceData.h"
+#include "User.h"
 
 // Window-independent part of the GUI: app state, page switching, one frame.
 namespace Gui {
     enum class Page { DASHBOARD, TRANSACTIONS, RECURRING, MASTER_DATA, STATISTICS, SETTINGS };
+    // Screens shown before logging in.
+    enum class AuthScreen { WELCOME, LOGIN, REGISTER };
 
     struct AppState {
-        FinanceData data;
+        FinanceData data;               // data of the logged-in account
         std::string dataFile;
         bool demoMode = false;
         bool darkTheme = false;
         Page page = Page::DASHBOARD;
         void* nativeWindow = nullptr;   // HWND, used to color the title bar
+
+        // Accounts
+        DynamicArray<User> users;
+        std::string usersFile;          // data/users.dat (demo: data/demo_users.dat)
+        std::string usersDir;           // folder with one data file per account
+        bool loggedIn = false;
+        std::string username;
+        std::string nickname;
+        AuthScreen authScreen = AuthScreen::WELCOME;
     };
 
-    // Loads data + settings and generates this month's recurring transactions.
+    // Loads settings and the account list. The finance data is loaded at login.
     void startup(AppState& app, bool demo);
+    // Opens the account users[index]: loads its data and adds this month's
+    // recurring transactions, then shows the Dashboard.
+    void login(AppState& app, int index);
+    // Saves the account's data and goes back to the Get Started screen.
+    void logout(AppState& app);
     // Draws one frame (call between ImGui::NewFrame() and ImGui::Render()).
     void frame(AppState& app);
     // Saves everything before the window closes.
