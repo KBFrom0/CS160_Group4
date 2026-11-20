@@ -109,10 +109,15 @@ static void testMasterDataLookup() {
     data.wallets.add(Wallet("WAL001", "Cash"));
     data.wallets.add(Wallet("WAL002", "Bank Account"));
 
-    // Found at the first, middle and last position.
+    // Find the first, middle and last item in each list.
     CHECK(MasterData::findCategoryIndex(data, "CAT001") == 0);
+    CHECK(MasterData::findCategoryIndex(data, "CAT002") == 1);
+
+    CHECK(MasterData::findSourceIndex(data, "SRC001") == 0);
     CHECK(MasterData::findSourceIndex(data, "SRC002") == 1);
     CHECK(MasterData::findSourceIndex(data, "SRC003") == 2);
+
+    CHECK(MasterData::findWalletIndex(data, "WAL001") == 0);
     CHECK(MasterData::findWalletIndex(data, "WAL002") == 1);
 
     // Not found: unknown id, empty id, wrong case, id of another list.
@@ -749,6 +754,12 @@ static void testMasterDataDuplicateNames() {
     CHECK(MasterData::renameItem(data, Kind::SOURCE, "SRC001", "  Pay  ", message));
     CHECK(data.sources[0].getName() == "Pay");
 
+    // renameItem: category can be renamed successfully.
+    CHECK(MasterData::renameItem(data, Kind::CATEGORY, "CAT001", "  Groceries  ", message));
+    CHECK(message == "");
+    CHECK(data.categories[0].getName() == "Groceries");
+    CHECK(data.categories[0].getId() == "CAT001");
+
     // renameItem: unknown id -> rejected with a message.
     message = "";
     CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL999", "Anything", message));
@@ -757,6 +768,37 @@ static void testMasterDataDuplicateNames() {
 
     // The ID never changes when renaming.
     CHECK(data.wallets[0].getId() == "WAL001");
+}
+
+static void testMasterDataTabTrimming() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // A name containing only tabs must be rejected.
+    CHECK(!MasterData::addItem(data, Kind::WALLET, "\t\t", message));
+    CHECK(message != "");
+    CHECK(data.wallets.isEmpty());
+
+    // Tabs around a valid name must be trimmed.
+    message = "";
+    CHECK(MasterData::addItem(data, Kind::WALLET, "\tCash\t", message));
+    CHECK(message == "");
+    CHECK(data.wallets.size() == 1);
+    CHECK(data.wallets[0].getName() == "Cash");
+
+    // A name containing only tabs must also be rejected when renaming.
+    message = "";
+    CHECK(!MasterData::renameItem(data, Kind::WALLET, "WAL001", "\t\t", message));
+    CHECK(message != "");
+    CHECK(data.wallets[0].getName() == "Cash");
+
+    // Tabs and spaces around a new name must be trimmed.
+    message = "";
+    CHECK(MasterData::renameItem(data, Kind::WALLET, "WAL001", "\t Bank Account \t", message));
+    CHECK(message == "");
+    CHECK(data.wallets[0].getName() == "Bank Account");
 }
 
 static void testMasterDataRemoveInUse() {
@@ -860,6 +902,215 @@ static void testMasterDataRemoveInUse() {
     CHECK(data.wallets[data.wallets.size() - 1].getId() == "WAL004");
     CHECK(MasterData::addItem(data, Kind::CATEGORY, "Again", message));
     CHECK(data.categories[0].getId() == "CAT004");
+}
+
+static void testMasterDataSourceIdNotReused() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Add three income sources.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Bonus", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Gift", message));
+
+    CHECK(data.sources.size() == 3);
+    CHECK(data.sources[1].getId() == "SRC002");
+
+    // Remove the middle source.
+    CHECK(MasterData::removeItem(data, Kind::SOURCE, "SRC002", message));
+    CHECK(message == "");
+    CHECK(data.sources.size() == 2);
+
+    // Add a new source. The deleted ID must not be reused.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Freelance", message));
+    CHECK(message == "");
+    CHECK(data.sources.size() == 3);
+
+    CHECK(data.sources[2].getId() == "SRC004");
+    CHECK(MasterData::findSourceIndex(data, "SRC002") == -1);
+    CHECK(MasterData::findSourceIndex(data, "SRC004") == 2);
+}
+
+static void testMasterDataRemoveMiddleItem() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create three items in each list.
+    MasterData::addItem(data, Kind::CATEGORY, "Food", message);
+    MasterData::addItem(data, Kind::CATEGORY, "Rent", message);
+    MasterData::addItem(data, Kind::CATEGORY, "Travel", message);
+
+    MasterData::addItem(data, Kind::SOURCE, "Salary", message);
+    MasterData::addItem(data, Kind::SOURCE, "Bonus", message);
+    MasterData::addItem(data, Kind::SOURCE, "Gift", message);
+
+    MasterData::addItem(data, Kind::WALLET, "Cash", message);
+    MasterData::addItem(data, Kind::WALLET, "Bank", message);
+    MasterData::addItem(data, Kind::WALLET, "Savings", message);
+
+    // Remove the middle item from each list.
+    CHECK(MasterData::removeItem(data, Kind::CATEGORY, "CAT002", message));
+    CHECK(MasterData::removeItem(data, Kind::SOURCE, "SRC002", message));
+    CHECK(MasterData::removeItem(data, Kind::WALLET, "WAL002", message));
+
+    // Check the remaining items and their order.
+    CHECK(data.categories.size() == 2);
+    CHECK(data.categories[0].getId() == "CAT001");
+    CHECK(data.categories[1].getId() == "CAT003");
+
+    CHECK(data.sources.size() == 2);
+    CHECK(data.sources[0].getId() == "SRC001");
+    CHECK(data.sources[1].getId() == "SRC003");
+
+    CHECK(data.wallets.size() == 2);
+    CHECK(data.wallets[0].getId() == "WAL001");
+    CHECK(data.wallets[1].getId() == "WAL003");
+
+    // The deleted IDs can no longer be found.
+    CHECK(MasterData::findCategoryIndex(data, "CAT002") == -1);
+    CHECK(MasterData::findSourceIndex(data, "SRC002") == -1);
+    CHECK(MasterData::findWalletIndex(data, "WAL002") == -1);
+
+    // The remaining IDs are found at their new positions.
+    CHECK(MasterData::findCategoryIndex(data, "CAT003") == 1);
+    CHECK(MasterData::findSourceIndex(data, "SRC003") == 1);
+    CHECK(MasterData::findWalletIndex(data, "WAL003") == 1);
+}
+
+static void testMasterDataInUseAfterTransactionDeletion() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create master data.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Food", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", message));
+
+    // Create one income and one expense in different wallets.
+    data.incomes.add(Income(
+        "INC0001", Date(1, 3, 2026), "SRC001", 1000, "WAL001", ""
+    ));
+
+    data.expenses.add(Expense(
+        "EXP0001", Date(2, 3, 2026), "CAT001", 200, "WAL002", ""
+    ));
+
+    // Both transactions make their related items in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+
+    // Delete the income.
+    Transactions::TransactionRef income = {true, 0};
+    CHECK(Transactions::deleteTransaction(data, income));
+
+    // Its source and wallet are no longer in use.
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+
+    // The expense still uses its category and wallet.
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+
+    // Delete the expense.
+    Transactions::TransactionRef expense = {false, 0};
+    CHECK(Transactions::deleteTransaction(data, expense));
+
+    // All related items are now unused.
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+}
+
+static void testMasterDataInUseAfterIncomeUpdate() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create two sources and two wallets.
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", message));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Bonus", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", message));
+
+    // Create an income using the first source and wallet.
+    data.incomes.add(Income(
+        "INC001", Date(1, 1, 2025), "SRC001",
+        100000, "WAL001", "Original income"
+    ));
+
+    // Initially, the first source and wallet are in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+
+    CHECK(!MasterData::isSourceInUse(data, "SRC002"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+
+    // Update the income to use the second source and wallet.
+    Income updatedIncome(
+        "INC001", Date(2, 1, 2025), "SRC002",
+        200000, "WAL002", "Updated income"
+    );
+
+    CHECK(Transactions::updateIncome(data, 0, updatedIncome));
+
+    // The old source and wallet are no longer in use.
+    CHECK(!MasterData::isSourceInUse(data, "SRC001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+
+    // The new source and wallet are now in use.
+    CHECK(MasterData::isSourceInUse(data, "SRC002"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
+}
+
+static void testMasterDataInUseAfterExpenseUpdate() {
+    using MasterData::Kind;
+
+    FinanceData data;
+    std::string message;
+
+    // Create two categories and two wallets.
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Food", message));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Transport", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", message));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", message));
+
+    // Create an expense using the first category and wallet.
+    data.expenses.add(Expense(
+        "EXP001", Date(1, 1, 2025), "CAT001",
+        50000, "WAL001", "Original expense"
+    ));
+
+    // Initially, the first category and wallet are in use.
+    CHECK(MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(MasterData::isWalletInUse(data, "WAL001"));
+
+    CHECK(!MasterData::isCategoryInUse(data, "CAT002"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL002"));
+
+    // Update the expense to use the second category and wallet.
+    Expense updatedExpense(
+        "EXP001", Date(2, 1, 2025), "CAT002",
+        80000, "WAL002", "Updated expense"
+    );
+
+    CHECK(Transactions::updateExpense(data, 0, updatedExpense));
+
+    // The old category and wallet are no longer in use.
+    CHECK(!MasterData::isCategoryInUse(data, "CAT001"));
+    CHECK(!MasterData::isWalletInUse(data, "WAL001"));
+
+    // The new category and wallet are now in use.
+    CHECK(MasterData::isCategoryInUse(data, "CAT002"));
+    CHECK(MasterData::isWalletInUse(data, "WAL002"));
 }
 
 static void testBalanceAfterTransactionChanges() {
@@ -1742,7 +1993,13 @@ int main() {
     testMasterDataLookup();
     testMasterDataAddItem();
     testMasterDataDuplicateNames();
+    testMasterDataTabTrimming();
     testMasterDataRemoveInUse();
+    testMasterDataSourceIdNotReused();
+    testMasterDataRemoveMiddleItem();
+    testMasterDataInUseAfterTransactionDeletion();
+    testMasterDataInUseAfterIncomeUpdate();
+    testMasterDataInUseAfterExpenseUpdate();
     testBalanceAfterTransactionChanges();
     testBalanceNegativeWallet();
 
