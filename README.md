@@ -31,9 +31,9 @@ The first build compiles the GUI libraries once (~2 minutes); later builds take 
 - The app opens on a **Get Started** screen: create an account or log in.
   Each account has its own data file: `data/users/<username>.dat` (accounts: `data/users.dat`,
   passwords are stored as salted hashes).
-- Demo mode (`--demo`) has its own accounts (`data/demo_users.dat`) and a sample account
-  **`demo` / `demo123`** whose data is `data/demo.dat` (sample wallets, categories and
-  transactions), so your real data is never touched. Delete `data\demo.dat` to get the sample data back.
+- Demo mode (`--demo`) keeps its own accounts (`data/demo_users.dat`, `data/demo_users/`), so your
+  real data is never touched. An account created in demo mode starts with sample wallets,
+  categories and transactions. Delete `data\demo_users.dat` and `data\demo_users\` to start over.
 
 **CMake (optional):**
 ```bash

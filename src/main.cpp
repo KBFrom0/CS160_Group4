@@ -2,7 +2,7 @@
 // Based on the official Dear ImGui "example_win32_directx11".
 //
 // Usage:  PersonalFinanceManager.exe          -> normal mode (accounts in data/users.dat)
-//         PersonalFinanceManager.exe --demo   -> demo mode (account demo / demo123, data/demo.dat)
+//         PersonalFinanceManager.exe --demo   -> demo mode (data/demo_users.dat, new accounts get sample data)
 #include <string>
 #include <windows.h>
 #include <d3d11.h>

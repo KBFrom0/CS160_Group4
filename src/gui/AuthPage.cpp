@@ -141,14 +141,14 @@ namespace {
 
     void demoHint() {
         const Theme::Palette& p = Theme::colors();
-        std::string text = std::string(ICON_FA_FLASK "  Demo account:  ") + Auth::DEMO_USERNAME + "  /  " + Auth::DEMO_PASSWORD;
+        const char* text = ICON_FA_FLASK "  Demo mode: new accounts start with sample data.";
         ImDrawList* draw = ImGui::GetWindowDrawList();
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float width = ImGui::GetContentRegionAvail().x;
         float height = ImGui::GetTextLineHeight() + px(16);
         draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), Theme::toU32(p.orange, 0.14f), px(8));
         ImGui::SetCursorScreenPos(ImVec2(pos.x + px(12), pos.y + px(8)));
-        ImGui::TextColored(p.orange, "%s", text.c_str());
+        ImGui::TextColored(p.orange, "%s", text);
         ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + height));
         ImGui::Dummy(ImVec2(0, 0));
     }
@@ -191,10 +191,6 @@ namespace {
         title("Welcome back", Theme::FONT_HUGE);
         subtitle("Log in to see your wallets and transactions.");
         ImGui::Dummy(ImVec2(0, px(8)));
-        if (app.demoMode) {
-            demoHint();
-            ImGui::Dummy(ImVec2(0, px(4)));
-        }
 
         Widgets::fieldLabel("USERNAME");
         focusHere();

@@ -205,25 +205,18 @@ void startup(AppState& app, bool demo) {
     applyTheme(app, app.darkTheme);
 
     Auth::loadUsers(app.users, app.usersFile);
-    if (demo && Auth::findUser(app.users, Auth::DEMO_USERNAME) == -1) {
-        std::string message;
-        Auth::registerUser(app.users, Auth::DEMO_USERNAME, Auth::DEMO_NICKNAME,
-                           Auth::DEMO_PASSWORD, Auth::DEMO_PASSWORD, message);
-        Auth::saveUsers(app.users, app.usersFile);
-    }
 }
 
 void login(AppState& app, int index) {
     const User& user = app.users[index];
     app.username = user.getUsername();
     app.nickname = user.getNickname();
-    bool demoAccount = app.demoMode && Auth::findUser(app.users, Auth::DEMO_USERNAME) == index;
-    app.dataFile = demoAccount ? Auth::DEMO_DATA_FILE : Auth::dataFileFor(app.usersDir, app.username);
+    app.dataFile = Auth::dataFileFor(app.usersDir, app.username);
 
     app.data = FinanceData();
-    Storage::load(app.data, app.dataFile);
-    if (demoAccount && app.data.wallets.isEmpty()) {
-        DemoData::fill(app.data);
+    bool hasFile = Storage::load(app.data, app.dataFile);
+    if (app.demoMode && !hasFile) {
+        DemoData::fill(app.data);   // a new account in demo mode starts with the sample data
     }
     app.loggedIn = true;
     app.page = Page::DASHBOARD;
