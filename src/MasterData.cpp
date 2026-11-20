@@ -36,8 +36,13 @@ namespace {
     }
 
     // True if an item of this kind already has this name (upper/lower case is ignored).
-    bool nameExists(const FinanceData& data, Kind kind, const std::string& name) {
+    // The item at index ignoreIndex is skipped (use -1 to check all items).
+    bool nameExists(const FinanceData& data, Kind kind, const std::string& name,
+                    int ignoreIndex = -1) {
         for (int i = 0; i < count(data, kind); i++) {
+            if (i == ignoreIndex) {
+                continue;
+            }
             if (toLowerCase(nameAt(data, kind, i)) == toLowerCase(name)) {
                 return true;
             }
@@ -182,17 +187,59 @@ bool addItem(FinanceData& data, Kind kind, const std::string& name, std::string&
 
 bool renameItem(FinanceData& data, Kind kind, const std::string& id,
                 const std::string& newName, std::string& message) {
-    // TODO
-    (void)data; (void)kind; (void)id; (void)newName;
-    message = "Not implemented yet (MasterData::renameItem).";
-    return false;
+    int index = findIndex(data, kind, id);
+    if (index == -1) {
+        message = "The " + kindLabel(kind) + " does not exist.";
+        return false;
+    }
+
+    std::string cleanName = trimSpaces(newName);
+    if (cleanName.empty()) {
+        message = "Name cannot be empty.";
+        return false;
+    }
+    // The item itself is skipped, so keeping its name or changing only the case is allowed.
+    if (nameExists(data, kind, cleanName, index)) {
+        message = "The " + kindLabel(kind) + " \"" + cleanName + "\" already exists.";
+        return false;
+    }
+
+    switch (kind) {
+        case Kind::CATEGORY: data.categories[index].setName(cleanName); break;
+        case Kind::SOURCE:   data.sources[index].setName(cleanName);    break;
+        default:             data.wallets[index].setName(cleanName);    break;
+    }
+    message = "";
+    return true;
 }
 
 bool removeItem(FinanceData& data, Kind kind, const std::string& id, std::string& message) {
-    // TODO
-    (void)data; (void)kind; (void)id;
-    message = "Not implemented yet (MasterData::removeItem).";
-    return false;
+    int index = findIndex(data, kind, id);
+    if (index == -1) {
+        message = "The " + kindLabel(kind) + " does not exist.";
+        return false;
+    }
+
+    bool inUse = false;
+    switch (kind) {
+        case Kind::CATEGORY: inUse = isCategoryInUse(data, id); break;
+        case Kind::SOURCE:   inUse = isSourceInUse(data, id);   break;
+        default:             inUse = isWalletInUse(data, id);   break;
+    }
+    if (inUse) {
+        message = "Cannot delete the " + kindLabel(kind) + " \"" + nameAt(data, kind, index) +
+                  "\" because it is used by transactions or recurring transactions.";
+        return false;
+    }
+
+    // The next ID counter is not changed, so a deleted ID is never reused.
+    switch (kind) {
+        case Kind::CATEGORY: data.categories.removeAt(index); break;
+        case Kind::SOURCE:   data.sources.removeAt(index);    break;
+        default:             data.wallets.removeAt(index);    break;
+    }
+    message = "";
+    return true;
 }
 
 // ===================== Generic access (done) =====================
