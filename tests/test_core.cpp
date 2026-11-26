@@ -2066,6 +2066,448 @@ static void testAuth() {
     std::remove(path.c_str());
 }
 
+static void testCrossRecurringCrud() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Freelance"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.categories.add(ExpenseCategory("CAT002", "Internet"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+
+    Date validStart(15, 6, 2026);
+    Date validEnd(15, 12, 2026);
+    Date earlierEnd(14, 6, 2026);
+    Date invalidDate(30, 2, 2026);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 0LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", -1LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", -5000000000LL, "WAL001", "", validStart, false, Date())) == "");
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL001", "", invalidDate, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL001", "", Date(29, 2, 2025), false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000LL, "WAL001", "", validStart, true, invalidDate)) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000LL, "WAL001", "", validStart, true, earlierEnd)) == "");
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "CAT001", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "SRC001", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC999", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT999", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL999", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "", "", validStart, false, Date())) == "");
+
+    CHECK(data.recurrings.isEmpty());
+    CHECK(data.nextRecurringNo == 1);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM1", TransactionType::INCOME, "SRC001", 5000000000LL, "WAL001", "Big salary", validStart, false, invalidDate)) == "REC001");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM2", TransactionType::EXPENSE, "CAT001", 2500000LL, "WAL002", "Rent", validStart, false, earlierEnd)) == "REC002");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM3", TransactionType::EXPENSE, "CAT002", 300000LL, "WAL001", "Net", validStart, true, validStart)) == "REC003");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM4", TransactionType::INCOME, "SRC002", 1500000LL, "WAL002", "Side", validStart, true, validEnd)) == "REC004");
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getAmount() == 5000000000LL);
+    CHECK(!data.recurrings[0].getHasEndDate());
+    CHECK(data.recurrings[1].getId() == "REC002");
+    CHECK(!data.recurrings[1].getHasEndDate());
+    CHECK(data.recurrings[2].getId() == "REC003");
+    CHECK(data.recurrings[2].getHasEndDate() && data.recurrings[2].getEndDate() == validStart);
+    CHECK(data.recurrings[3].getId() == "REC004");
+
+    RecurringTransaction validUpdate("IGNORED_ID", TransactionType::EXPENSE, "CAT002", 7000000000LL, "WAL002", "Updated", Date(1, 7, 2026), true, Date(31, 12, 2026));
+    CHECK(!Recurring::updateRecurring(data, -1, validUpdate));
+    CHECK(!Recurring::updateRecurring(data, data.recurrings.size(), validUpdate));
+    CHECK(!Recurring::updateRecurring(data, 100, validUpdate));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 0LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", -100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", invalidDate, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", validStart, true, invalidDate)));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", validStart, true, earlierEnd)));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "CAT001", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::EXPENSE, "SRC001", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL999", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "", "", validStart, false, Date())));
+
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getType() == TransactionType::INCOME);
+    CHECK(data.recurrings[0].getRefId() == "SRC001");
+    CHECK(data.recurrings[0].getAmount() == 5000000000LL);
+    CHECK(data.recurrings[0].getWalletId() == "WAL001");
+    CHECK(data.recurrings[0].getDescription() == "Big salary");
+
+    CHECK(Recurring::updateRecurring(data, 0, validUpdate));
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getType() == TransactionType::EXPENSE);
+    CHECK(data.recurrings[0].getRefId() == "CAT002");
+    CHECK(data.recurrings[0].getAmount() == 7000000000LL);
+    CHECK(data.recurrings[0].getWalletId() == "WAL002");
+    CHECK(data.recurrings[0].getDescription() == "Updated");
+    CHECK(data.recurrings[0].getStartDate() == Date(1, 7, 2026));
+    CHECK(data.recurrings[0].getHasEndDate());
+    CHECK(data.recurrings[0].getEndDate() == Date(31, 12, 2026));
+    CHECK(data.nextRecurringNo == 5);
+
+    RecurringTransaction updateIgnoreEnd("OTHER", TransactionType::INCOME, "SRC002", 400000LL, "WAL001", "No end", validStart, false, invalidDate);
+    CHECK(Recurring::updateRecurring(data, 2, updateIgnoreEnd));
+    CHECK(data.recurrings[2].getId() == "REC003");
+    CHECK(!data.recurrings[2].getHasEndDate());
+
+    CHECK(!Recurring::removeRecurring(data, -1));
+    CHECK(!Recurring::removeRecurring(data, data.recurrings.size()));
+    CHECK(!Recurring::removeRecurring(data, 99));
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+
+    CHECK(Recurring::removeRecurring(data, 1));
+    CHECK(data.recurrings.size() == 3);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[1].getId() == "REC003");
+    CHECK(data.recurrings[2].getId() == "REC004");
+
+    CHECK(Recurring::removeRecurring(data, 0));
+    CHECK(data.recurrings.size() == 2);
+    CHECK(data.recurrings[0].getId() == "REC003");
+    CHECK(data.recurrings[1].getId() == "REC004");
+
+    CHECK(Recurring::removeRecurring(data, data.recurrings.size() - 1));
+    CHECK(data.recurrings.size() == 1);
+    CHECK(data.recurrings[0].getId() == "REC003");
+
+    CHECK(Recurring::removeRecurring(data, 0));
+    CHECK(data.recurrings.isEmpty());
+    CHECK(!Recurring::removeRecurring(data, 0));
+    CHECK(data.nextRecurringNo == 5);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 100000LL, "WAL001", "New", validStart, false, Date())) == "REC005");
+    CHECK(data.recurrings.size() == 1);
+    CHECK(data.recurrings[0].getId() == "REC005");
+    CHECK(data.nextRecurringNo == 6);
+}
+
+static void testCrossGenerateDueTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.categories.add(ExpenseCategory("CAT002", "Gym"));
+    data.wallets.add(Wallet("WAL001", "Bank"));
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 2000000LL, "WAL001", "Rent", Date(15, 3, 2026), true, Date(10, 5, 2026))) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(data, Date(28, 2, 2026)) == 0);
+    CHECK(data.expenses.isEmpty());
+    CHECK(data.nextExpenseNo == 1);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(1, 3, 2026)) == 1);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.expenses[0].getId() == "EXP0001");
+    CHECK(data.expenses[0].getDate() == Date(15, 3, 2026));
+    CHECK(data.expenses[0].getAmount() == 2000000LL);
+    CHECK(data.expenses[0].getRecurringId() == "REC001");
+    CHECK(data.nextExpenseNo == 2);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 3, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(data, Date(31, 3, 2026)) == 0);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.nextExpenseNo == 2);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(31, 5, 2026)) == 1);
+    CHECK(data.expenses.size() == 2);
+    CHECK(data.expenses[1].getDate() == Date(15, 5, 2026));
+
+    CHECK(Recurring::generateDueTransactions(data, Date(1, 6, 2026)) == 0);
+    CHECK(data.expenses.size() == 2);
+
+    FinanceData clampData;
+    clampData.sources.add(IncomeSource("SRC001", "Pay"));
+    clampData.categories.add(ExpenseCategory("CAT001", "Bill"));
+    clampData.wallets.add(Wallet("WAL001", "Cash"));
+    CHECK(Recurring::addRecurring(clampData, RecurringTransaction("", TransactionType::INCOME, "SRC001", 3000000000LL, "WAL001", "Day31", Date(31, 1, 2026), false, Date())) == "REC001");
+    CHECK(Recurring::addRecurring(clampData, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 500000LL, "WAL001", "Day30", Date(30, 1, 2026), false, Date())) == "REC002");
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(5, 4, 2026)) == 2);
+    CHECK(clampData.incomes[0].getDate() == Date(30, 4, 2026));
+    CHECK(clampData.expenses[0].getDate() == Date(30, 4, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(10, 6, 2026)) == 2);
+    CHECK(clampData.incomes[1].getDate() == Date(30, 6, 2026));
+    CHECK(clampData.expenses[1].getDate() == Date(30, 6, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(1, 2, 2026)) == 2);
+    CHECK(clampData.incomes[2].getDate() == Date(28, 2, 2026));
+    CHECK(clampData.expenses[2].getDate() == Date(28, 2, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(1, 2, 2028)) == 2);
+    CHECK(clampData.incomes[3].getDate() == Date(29, 2, 2028));
+    CHECK(clampData.expenses[3].getDate() == Date(29, 2, 2028));
+
+    FinanceData sameMonthData;
+    sameMonthData.categories.add(ExpenseCategory("CAT001", "Event"));
+    sameMonthData.wallets.add(Wallet("WAL001", "Cash"));
+    CHECK(Recurring::addRecurring(sameMonthData, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 750000LL, "WAL001", "OneMonth", Date(10, 5, 2026), true, Date(20, 5, 2026))) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(30, 4, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(1, 5, 2026)) == 1);
+    CHECK(sameMonthData.expenses.size() == 1);
+    CHECK(sameMonthData.expenses[0].getDate() == Date(10, 5, 2026));
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(25, 5, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(1, 6, 2026)) == 0);
+    CHECK(sameMonthData.expenses.size() == 1);
+
+    FinanceData yearData;
+    yearData.sources.add(IncomeSource("SRC001", "Bonus"));
+    yearData.wallets.add(Wallet("WAL001", "Bank"));
+    CHECK(Recurring::addRecurring(yearData, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000000LL, "WAL001", "YearlyCheck", Date(12, 3, 2026), false, Date())) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2026)) == 1);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2027)) == 1);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2028)) == 1);
+    CHECK(yearData.incomes.size() == 3);
+    CHECK(yearData.incomes[0].getDate() == Date(12, 3, 2026));
+    CHECK(yearData.incomes[1].getDate() == Date(12, 3, 2027));
+    CHECK(yearData.incomes[2].getDate() == Date(12, 3, 2028));
+
+    int prevIncomes = yearData.incomes.size();
+    int prevExpenses = yearData.expenses.size();
+    int prevNextInc = yearData.nextIncomeNo;
+    int prevNextExp = yearData.nextExpenseNo;
+    CHECK(Recurring::generateDueTransactions(yearData, Date(30, 2, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(31, 4, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(0, 1, 2026)) == 0);
+    CHECK(yearData.incomes.size() == prevIncomes);
+    CHECK(yearData.expenses.size() == prevExpenses);
+    CHECK(yearData.nextIncomeNo == prevNextInc);
+    CHECK(yearData.nextExpenseNo == prevNextExp);
+}
+
+static void testCrossAnnualStatistics() {
+    DynamicArray<int> yrs;
+    CHECK(!AnnualStatistics::containsYear(yrs, 0));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(!AnnualStatistics::containsYear(yrs, -1));
+
+    yrs.add(2026);
+    CHECK(AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2025));
+
+    yrs.add(0);
+    yrs.add(-2020);
+    yrs.add(2026);
+    yrs.add(2024);
+    CHECK(AnnualStatistics::containsYear(yrs, 0));
+    CHECK(AnnualStatistics::containsYear(yrs, -2020));
+    CHECK(AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(AnnualStatistics::containsYear(yrs, 2024));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2025));
+
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Bonus"));
+    data.sources.add(IncomeSource("SRC003", "Unused"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.categories.add(ExpenseCategory("CAT002", "Rent"));
+    data.categories.add(ExpenseCategory("CAT003", "Unused"));
+    data.wallets.add(Wallet("WAL001", "Bank"));
+
+    data.incomes.add(Income("INC0001", Date(31, 12, 2025), "SRC001", 3000000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(1, 1, 2026), "SRC001", 3500000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(15, 6, 2026), "SRC001", 2500000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0004", Date(20, 7, 2026), "SRC002", 400000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0005", Date(5, 5, 2023), "SRC002", 1200000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0006", Date(10, 8, 2026), "SRC999", 999999LL, "WAL001", ""));
+
+    data.expenses.add(Expense("EXP0001", Date(31, 12, 2025), "CAT001", 100000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0002", Date(1, 1, 2026), "CAT002", 3100000000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0003", Date(10, 2, 2026), "CAT002", 2900000000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0004", Date(12, 3, 2023), "CAT001", 500000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0005", Date(18, 9, 2026), "CAT999", 777777LL, "WAL001", ""));
+
+    DynamicArray<int> emptyYears;
+    Statistics::PeriodSummary emptySum = AnnualStatistics::summarizeYears(data, emptyYears);
+    CHECK(emptySum.totalIncome == 0LL);
+    CHECK(emptySum.totalExpense == 0LL);
+    CHECK(emptySum.net() == 0LL);
+
+    DynamicArray<int> noMatchYears;
+    noMatchYears.add(1999);
+    noMatchYears.add(2035);
+    Statistics::PeriodSummary noMatchSum = AnnualStatistics::summarizeYears(data, noMatchYears);
+    CHECK(noMatchSum.totalIncome == 0LL);
+    CHECK(noMatchSum.totalExpense == 0LL);
+    CHECK(noMatchSum.net() == 0LL);
+
+    DynamicArray<int> y2025;
+    y2025.add(2025);
+    Statistics::PeriodSummary s2025 = AnnualStatistics::summarizeYears(data, y2025);
+    CHECK(s2025.totalIncome == 3000000000LL);
+    CHECK(s2025.totalExpense == 100000LL);
+    CHECK(s2025.net() == 2999900000LL);
+
+    DynamicArray<int> y2026;
+    y2026.add(2026);
+    Statistics::PeriodSummary s2026 = AnnualStatistics::summarizeYears(data, y2026);
+    CHECK(s2026.totalIncome == 6001399999LL);
+    CHECK(s2026.totalExpense == 6000777777LL);
+    CHECK(s2026.net() == 622222LL);
+
+    DynamicArray<int> dup2026;
+    dup2026.add(2026);
+    dup2026.add(2026);
+    dup2026.add(2026);
+    Statistics::PeriodSummary sDup = AnnualStatistics::summarizeYears(data, dup2026);
+    CHECK(sDup.totalIncome == s2026.totalIncome);
+    CHECK(sDup.totalExpense == s2026.totalExpense);
+    CHECK(sDup.net() == s2026.net());
+
+    DynamicArray<int> nonContig;
+    nonContig.add(2023);
+    nonContig.add(2026);
+    Statistics::PeriodSummary sNonContig = AnnualStatistics::summarizeYears(data, nonContig);
+    CHECK(sNonContig.totalIncome == 6002599999LL);
+    CHECK(sNonContig.totalExpense == 6001277777LL);
+    CHECK(sNonContig.net() == 1322222LL);
+
+    DynamicArray<long long> inc2026 = AnnualStatistics::incomeBySource(data, dup2026);
+    CHECK(inc2026.size() == 3);
+    CHECK(inc2026[0] == 6000000000LL);
+    CHECK(inc2026[1] == 400000LL);
+    CHECK(inc2026[2] == 0LL);
+
+    DynamicArray<long long> exp2026 = AnnualStatistics::expenseByCategory(data, dup2026);
+    CHECK(exp2026.size() == 3);
+    CHECK(exp2026[0] == 0LL);
+    CHECK(exp2026[1] == 6000000000LL);
+    CHECK(exp2026[2] == 0LL);
+
+    DynamicArray<long long> incNonContig = AnnualStatistics::incomeBySource(data, nonContig);
+    CHECK(incNonContig.size() == 3);
+    CHECK(incNonContig[0] == 6000000000LL);
+    CHECK(incNonContig[1] == 1600000LL);
+    CHECK(incNonContig[2] == 0LL);
+
+    DynamicArray<long long> expNonContig = AnnualStatistics::expenseByCategory(data, nonContig);
+    CHECK(expNonContig.size() == 3);
+    CHECK(expNonContig[0] == 500000LL);
+    CHECK(expNonContig[1] == 6000000000LL);
+    CHECK(expNonContig[2] == 0LL);
+
+    FinanceData noMaster;
+    noMaster.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 1000LL, "WAL001", ""));
+    noMaster.expenses.add(Expense("EXP0001", Date(1, 1, 2026), "CAT001", 500LL, "WAL001", ""));
+    CHECK(AnnualStatistics::incomeBySource(noMaster, y2026).isEmpty());
+    CHECK(AnnualStatistics::expenseByCategory(noMaster, y2026).isEmpty());
+}
+
+static void testCrossKhoaWithOtherModules() {
+    using MasterData::Kind;
+    FinanceData data;
+    std::string msg;
+
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", msg));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", msg));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", msg));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Dividend", msg));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Rent", msg));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Utilities", msg));
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 3000000LL, "WAL002", "Salary", Date(25, 11, 2025), false, Date())) == "REC001");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000000LL, "WAL002", "Rent", Date(5, 12, 2025), true, Date(5, 1, 2026))) == "REC002");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT002", 200000LL, "WAL001", "Electric", Date(10, 11, 2025), false, Date())) == "REC003");
+
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "WAL001", msg));
+    CHECK(!MasterData::removeItem(data, Kind::SOURCE, "SRC001", msg));
+    CHECK(!MasterData::removeItem(data, Kind::CATEGORY, "CAT001", msg));
+
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 11, 2025)) == 2);
+    CHECK(Recurring::generateDueTransactions(data, Date(20, 12, 2025)) == 3);
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 1, 2026)) == 3);
+    CHECK(data.incomes.size() == 3);
+    CHECK(data.expenses.size() == 5);
+
+    const std::string path = "test_cross_khoa.dat";
+    std::remove(path.c_str());
+    CHECK(Storage::save(data, path));
+
+    FinanceData reloaded;
+    CHECK(Storage::load(reloaded, path));
+    std::remove(path.c_str());
+
+    CHECK(Recurring::generateDueTransactions(reloaded, Date(28, 1, 2026)) == 0);
+    CHECK(reloaded.incomes.size() == 3);
+    CHECK(reloaded.expenses.size() == 5);
+
+    CHECK(Balance::walletBalance(reloaded, "WAL001") == -600000LL);
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 7000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 6400000LL);
+
+    DynamicArray<int> y2025;
+    y2025.add(2025);
+    DynamicArray<int> y2026;
+    y2026.add(2026);
+    DynamicArray<int> bothYears;
+    bothYears.add(2025);
+    bothYears.add(2026);
+
+    Statistics::PeriodSummary sum2025 = AnnualStatistics::summarizeYears(reloaded, y2025);
+    CHECK(sum2025.totalIncome == 6000000LL);
+    CHECK(sum2025.totalExpense == 1400000LL);
+    CHECK(sum2025.net() == 4600000LL);
+
+    Statistics::PeriodSummary sum2026 = AnnualStatistics::summarizeYears(reloaded, y2026);
+    CHECK(sum2026.totalIncome == 3000000LL);
+    CHECK(sum2026.totalExpense == 1200000LL);
+    CHECK(sum2026.net() == 1800000LL);
+
+    DynamicArray<long long> incBySrc = AnnualStatistics::incomeBySource(reloaded, bothYears);
+    CHECK(incBySrc.size() == 2);
+    CHECK(incBySrc[0] == 9000000LL);
+    CHECK(incBySrc[1] == 0LL);
+
+    DynamicArray<long long> expByCat = AnnualStatistics::expenseByCategory(reloaded, bothYears);
+    CHECK(expByCat.size() == 2);
+    CHECK(expByCat[0] == 2000000LL);
+    CHECK(expByCat[1] == 600000LL);
+
+    Income updatedInc(reloaded.incomes[2].getId(), Date(25, 1, 2026), "SRC002", 4500000LL, "WAL001", "Adjusted", reloaded.incomes[2].getRecurringId());
+    CHECK(Transactions::updateIncome(reloaded, 2, updatedInc));
+
+    CHECK(Balance::walletBalance(reloaded, "WAL001") == 3900000LL);
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 4000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 7900000LL);
+
+    sum2026 = AnnualStatistics::summarizeYears(reloaded, y2026);
+    CHECK(sum2026.totalIncome == 4500000LL);
+    CHECK(sum2026.totalExpense == 1200000LL);
+
+    incBySrc = AnnualStatistics::incomeBySource(reloaded, bothYears);
+    CHECK(incBySrc[0] == 6000000LL);
+    CHECK(incBySrc[1] == 4500000LL);
+
+    CHECK(Recurring::generateDueTransactions(reloaded, Date(31, 1, 2026)) == 0);
+
+    Transactions::TransactionRef delRef;
+    delRef.isIncome = false;
+    delRef.index = 1;
+    CHECK(reloaded.expenses[1].getCategoryId() == "CAT001");
+    CHECK(reloaded.expenses[1].getDate().getYear() == 2025);
+    CHECK(Transactions::deleteTransaction(reloaded, delRef));
+
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 5000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 8900000LL);
+
+    sum2025 = AnnualStatistics::summarizeYears(reloaded, y2025);
+    CHECK(sum2025.totalIncome == 6000000LL);
+    CHECK(sum2025.totalExpense == 400000LL);
+
+    expByCat = AnnualStatistics::expenseByCategory(reloaded, bothYears);
+    CHECK(expByCat[0] == 1000000LL);
+    CHECK(expByCat[1] == 600000LL);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2100,6 +2542,10 @@ int main() {
     testCrossDeleteTransactions();
     testCrossTransactionsWithOtherModules();
     testAuth();
+    testCrossRecurringCrud();
+    testCrossGenerateDueTransactions();
+    testCrossAnnualStatistics();
+    testCrossKhoaWithOtherModules();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
