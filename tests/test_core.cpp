@@ -2189,6 +2189,101 @@ static void testCrossRecurringCrud() {
     CHECK(data.nextRecurringNo == 6);
 }
 
+static void testCrossGenerateDueTransactions() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.categories.add(ExpenseCategory("CAT002", "Gym"));
+    data.wallets.add(Wallet("WAL001", "Bank"));
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 2000000LL, "WAL001", "Rent", Date(15, 3, 2026), true, Date(10, 5, 2026))) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(data, Date(28, 2, 2026)) == 0);
+    CHECK(data.expenses.isEmpty());
+    CHECK(data.nextExpenseNo == 1);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(1, 3, 2026)) == 1);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.expenses[0].getId() == "EXP0001");
+    CHECK(data.expenses[0].getDate() == Date(15, 3, 2026));
+    CHECK(data.expenses[0].getAmount() == 2000000LL);
+    CHECK(data.expenses[0].getRecurringId() == "REC001");
+    CHECK(data.nextExpenseNo == 2);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 3, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(data, Date(31, 3, 2026)) == 0);
+    CHECK(data.expenses.size() == 1);
+    CHECK(data.nextExpenseNo == 2);
+
+    CHECK(Recurring::generateDueTransactions(data, Date(31, 5, 2026)) == 1);
+    CHECK(data.expenses.size() == 2);
+    CHECK(data.expenses[1].getDate() == Date(15, 5, 2026));
+
+    CHECK(Recurring::generateDueTransactions(data, Date(1, 6, 2026)) == 0);
+    CHECK(data.expenses.size() == 2);
+
+    FinanceData clampData;
+    clampData.sources.add(IncomeSource("SRC001", "Pay"));
+    clampData.categories.add(ExpenseCategory("CAT001", "Bill"));
+    clampData.wallets.add(Wallet("WAL001", "Cash"));
+    CHECK(Recurring::addRecurring(clampData, RecurringTransaction("", TransactionType::INCOME, "SRC001", 3000000000LL, "WAL001", "Day31", Date(31, 1, 2026), false, Date())) == "REC001");
+    CHECK(Recurring::addRecurring(clampData, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 500000LL, "WAL001", "Day30", Date(30, 1, 2026), false, Date())) == "REC002");
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(5, 4, 2026)) == 2);
+    CHECK(clampData.incomes[0].getDate() == Date(30, 4, 2026));
+    CHECK(clampData.expenses[0].getDate() == Date(30, 4, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(10, 6, 2026)) == 2);
+    CHECK(clampData.incomes[1].getDate() == Date(30, 6, 2026));
+    CHECK(clampData.expenses[1].getDate() == Date(30, 6, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(1, 2, 2026)) == 2);
+    CHECK(clampData.incomes[2].getDate() == Date(28, 2, 2026));
+    CHECK(clampData.expenses[2].getDate() == Date(28, 2, 2026));
+
+    CHECK(Recurring::generateDueTransactions(clampData, Date(1, 2, 2028)) == 2);
+    CHECK(clampData.incomes[3].getDate() == Date(29, 2, 2028));
+    CHECK(clampData.expenses[3].getDate() == Date(29, 2, 2028));
+
+    FinanceData sameMonthData;
+    sameMonthData.categories.add(ExpenseCategory("CAT001", "Event"));
+    sameMonthData.wallets.add(Wallet("WAL001", "Cash"));
+    CHECK(Recurring::addRecurring(sameMonthData, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 750000LL, "WAL001", "OneMonth", Date(10, 5, 2026), true, Date(20, 5, 2026))) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(30, 4, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(1, 5, 2026)) == 1);
+    CHECK(sameMonthData.expenses.size() == 1);
+    CHECK(sameMonthData.expenses[0].getDate() == Date(10, 5, 2026));
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(25, 5, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(sameMonthData, Date(1, 6, 2026)) == 0);
+    CHECK(sameMonthData.expenses.size() == 1);
+
+    FinanceData yearData;
+    yearData.sources.add(IncomeSource("SRC001", "Bonus"));
+    yearData.wallets.add(Wallet("WAL001", "Bank"));
+    CHECK(Recurring::addRecurring(yearData, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000000LL, "WAL001", "YearlyCheck", Date(12, 3, 2026), false, Date())) == "REC001");
+
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2026)) == 1);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2027)) == 1);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(1, 3, 2028)) == 1);
+    CHECK(yearData.incomes.size() == 3);
+    CHECK(yearData.incomes[0].getDate() == Date(12, 3, 2026));
+    CHECK(yearData.incomes[1].getDate() == Date(12, 3, 2027));
+    CHECK(yearData.incomes[2].getDate() == Date(12, 3, 2028));
+
+    int prevIncomes = yearData.incomes.size();
+    int prevExpenses = yearData.expenses.size();
+    int prevNextInc = yearData.nextIncomeNo;
+    int prevNextExp = yearData.nextExpenseNo;
+    CHECK(Recurring::generateDueTransactions(yearData, Date(30, 2, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(31, 4, 2026)) == 0);
+    CHECK(Recurring::generateDueTransactions(yearData, Date(0, 1, 2026)) == 0);
+    CHECK(yearData.incomes.size() == prevIncomes);
+    CHECK(yearData.expenses.size() == prevExpenses);
+    CHECK(yearData.nextIncomeNo == prevNextInc);
+    CHECK(yearData.nextExpenseNo == prevNextExp);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2224,6 +2319,7 @@ int main() {
     testCrossTransactionsWithOtherModules();
     testAuth();
     testCrossRecurringCrud();
+    testCrossGenerateDueTransactions();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
