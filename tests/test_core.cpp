@@ -2066,6 +2066,129 @@ static void testAuth() {
     std::remove(path.c_str());
 }
 
+static void testCrossRecurringCrud() {
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Freelance"));
+    data.categories.add(ExpenseCategory("CAT001", "Rent"));
+    data.categories.add(ExpenseCategory("CAT002", "Internet"));
+    data.wallets.add(Wallet("WAL001", "Cash"));
+    data.wallets.add(Wallet("WAL002", "Bank"));
+
+    Date validStart(15, 6, 2026);
+    Date validEnd(15, 12, 2026);
+    Date earlierEnd(14, 6, 2026);
+    Date invalidDate(30, 2, 2026);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 0LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", -1LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", -5000000000LL, "WAL001", "", validStart, false, Date())) == "");
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL001", "", invalidDate, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL001", "", Date(29, 2, 2025), false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000LL, "WAL001", "", validStart, true, invalidDate)) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000LL, "WAL001", "", validStart, true, earlierEnd)) == "");
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "CAT001", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "SRC001", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC999", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT999", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "WAL999", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "", 1000LL, "WAL001", "", validStart, false, Date())) == "");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 1000LL, "", "", validStart, false, Date())) == "");
+
+    CHECK(data.recurrings.isEmpty());
+    CHECK(data.nextRecurringNo == 1);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM1", TransactionType::INCOME, "SRC001", 5000000000LL, "WAL001", "Big salary", validStart, false, invalidDate)) == "REC001");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM2", TransactionType::EXPENSE, "CAT001", 2500000LL, "WAL002", "Rent", validStart, false, earlierEnd)) == "REC002");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM3", TransactionType::EXPENSE, "CAT002", 300000LL, "WAL001", "Net", validStart, true, validStart)) == "REC003");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("CUSTOM4", TransactionType::INCOME, "SRC002", 1500000LL, "WAL002", "Side", validStart, true, validEnd)) == "REC004");
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getAmount() == 5000000000LL);
+    CHECK(!data.recurrings[0].getHasEndDate());
+    CHECK(data.recurrings[1].getId() == "REC002");
+    CHECK(!data.recurrings[1].getHasEndDate());
+    CHECK(data.recurrings[2].getId() == "REC003");
+    CHECK(data.recurrings[2].getHasEndDate() && data.recurrings[2].getEndDate() == validStart);
+    CHECK(data.recurrings[3].getId() == "REC004");
+
+    RecurringTransaction validUpdate("IGNORED_ID", TransactionType::EXPENSE, "CAT002", 7000000000LL, "WAL002", "Updated", Date(1, 7, 2026), true, Date(31, 12, 2026));
+    CHECK(!Recurring::updateRecurring(data, -1, validUpdate));
+    CHECK(!Recurring::updateRecurring(data, data.recurrings.size(), validUpdate));
+    CHECK(!Recurring::updateRecurring(data, 100, validUpdate));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 0LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", -100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", invalidDate, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", validStart, true, invalidDate)));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL001", "", validStart, true, earlierEnd)));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "CAT001", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::EXPENSE, "SRC001", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "WAL999", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "", 100LL, "WAL001", "", validStart, false, Date())));
+    CHECK(!Recurring::updateRecurring(data, 0, RecurringTransaction("X", TransactionType::INCOME, "SRC001", 100LL, "", "", validStart, false, Date())));
+
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getType() == TransactionType::INCOME);
+    CHECK(data.recurrings[0].getRefId() == "SRC001");
+    CHECK(data.recurrings[0].getAmount() == 5000000000LL);
+    CHECK(data.recurrings[0].getWalletId() == "WAL001");
+    CHECK(data.recurrings[0].getDescription() == "Big salary");
+
+    CHECK(Recurring::updateRecurring(data, 0, validUpdate));
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getType() == TransactionType::EXPENSE);
+    CHECK(data.recurrings[0].getRefId() == "CAT002");
+    CHECK(data.recurrings[0].getAmount() == 7000000000LL);
+    CHECK(data.recurrings[0].getWalletId() == "WAL002");
+    CHECK(data.recurrings[0].getDescription() == "Updated");
+    CHECK(data.recurrings[0].getStartDate() == Date(1, 7, 2026));
+    CHECK(data.recurrings[0].getHasEndDate());
+    CHECK(data.recurrings[0].getEndDate() == Date(31, 12, 2026));
+    CHECK(data.nextRecurringNo == 5);
+
+    RecurringTransaction updateIgnoreEnd("OTHER", TransactionType::INCOME, "SRC002", 400000LL, "WAL001", "No end", validStart, false, invalidDate);
+    CHECK(Recurring::updateRecurring(data, 2, updateIgnoreEnd));
+    CHECK(data.recurrings[2].getId() == "REC003");
+    CHECK(!data.recurrings[2].getHasEndDate());
+
+    CHECK(!Recurring::removeRecurring(data, -1));
+    CHECK(!Recurring::removeRecurring(data, data.recurrings.size()));
+    CHECK(!Recurring::removeRecurring(data, 99));
+    CHECK(data.recurrings.size() == 4);
+    CHECK(data.nextRecurringNo == 5);
+
+    CHECK(Recurring::removeRecurring(data, 1));
+    CHECK(data.recurrings.size() == 3);
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[1].getId() == "REC003");
+    CHECK(data.recurrings[2].getId() == "REC004");
+
+    CHECK(Recurring::removeRecurring(data, 0));
+    CHECK(data.recurrings.size() == 2);
+    CHECK(data.recurrings[0].getId() == "REC003");
+    CHECK(data.recurrings[1].getId() == "REC004");
+
+    CHECK(Recurring::removeRecurring(data, data.recurrings.size() - 1));
+    CHECK(data.recurrings.size() == 1);
+    CHECK(data.recurrings[0].getId() == "REC003");
+
+    CHECK(Recurring::removeRecurring(data, 0));
+    CHECK(data.recurrings.isEmpty());
+    CHECK(!Recurring::removeRecurring(data, 0));
+    CHECK(data.nextRecurringNo == 5);
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 100000LL, "WAL001", "New", validStart, false, Date())) == "REC005");
+    CHECK(data.recurrings.size() == 1);
+    CHECK(data.recurrings[0].getId() == "REC005");
+    CHECK(data.nextRecurringNo == 6);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2100,6 +2223,7 @@ int main() {
     testCrossDeleteTransactions();
     testCrossTransactionsWithOtherModules();
     testAuth();
+    testCrossRecurringCrud();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
