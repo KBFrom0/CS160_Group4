@@ -2402,6 +2402,112 @@ static void testCrossAnnualStatistics() {
     CHECK(AnnualStatistics::expenseByCategory(noMaster, y2026).isEmpty());
 }
 
+static void testCrossKhoaWithOtherModules() {
+    using MasterData::Kind;
+    FinanceData data;
+    std::string msg;
+
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Cash", msg));
+    CHECK(MasterData::addItem(data, Kind::WALLET, "Bank", msg));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Salary", msg));
+    CHECK(MasterData::addItem(data, Kind::SOURCE, "Dividend", msg));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Rent", msg));
+    CHECK(MasterData::addItem(data, Kind::CATEGORY, "Utilities", msg));
+
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::INCOME, "SRC001", 3000000LL, "WAL002", "Salary", Date(25, 11, 2025), false, Date())) == "REC001");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT001", 1000000LL, "WAL002", "Rent", Date(5, 12, 2025), true, Date(5, 1, 2026))) == "REC002");
+    CHECK(Recurring::addRecurring(data, RecurringTransaction("", TransactionType::EXPENSE, "CAT002", 200000LL, "WAL001", "Electric", Date(10, 11, 2025), false, Date())) == "REC003");
+
+    CHECK(!MasterData::removeItem(data, Kind::WALLET, "WAL001", msg));
+    CHECK(!MasterData::removeItem(data, Kind::SOURCE, "SRC001", msg));
+    CHECK(!MasterData::removeItem(data, Kind::CATEGORY, "CAT001", msg));
+
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 11, 2025)) == 2);
+    CHECK(Recurring::generateDueTransactions(data, Date(20, 12, 2025)) == 3);
+    CHECK(Recurring::generateDueTransactions(data, Date(15, 1, 2026)) == 3);
+    CHECK(data.incomes.size() == 3);
+    CHECK(data.expenses.size() == 5);
+
+    const std::string path = "test_cross_khoa.dat";
+    std::remove(path.c_str());
+    CHECK(Storage::save(data, path));
+
+    FinanceData reloaded;
+    CHECK(Storage::load(reloaded, path));
+    std::remove(path.c_str());
+
+    CHECK(Recurring::generateDueTransactions(reloaded, Date(28, 1, 2026)) == 0);
+    CHECK(reloaded.incomes.size() == 3);
+    CHECK(reloaded.expenses.size() == 5);
+
+    CHECK(Balance::walletBalance(reloaded, "WAL001") == -600000LL);
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 7000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 6400000LL);
+
+    DynamicArray<int> y2025;
+    y2025.add(2025);
+    DynamicArray<int> y2026;
+    y2026.add(2026);
+    DynamicArray<int> bothYears;
+    bothYears.add(2025);
+    bothYears.add(2026);
+
+    Statistics::PeriodSummary sum2025 = AnnualStatistics::summarizeYears(reloaded, y2025);
+    CHECK(sum2025.totalIncome == 6000000LL);
+    CHECK(sum2025.totalExpense == 1400000LL);
+    CHECK(sum2025.net() == 4600000LL);
+
+    Statistics::PeriodSummary sum2026 = AnnualStatistics::summarizeYears(reloaded, y2026);
+    CHECK(sum2026.totalIncome == 3000000LL);
+    CHECK(sum2026.totalExpense == 1200000LL);
+    CHECK(sum2026.net() == 1800000LL);
+
+    DynamicArray<long long> incBySrc = AnnualStatistics::incomeBySource(reloaded, bothYears);
+    CHECK(incBySrc.size() == 2);
+    CHECK(incBySrc[0] == 9000000LL);
+    CHECK(incBySrc[1] == 0LL);
+
+    DynamicArray<long long> expByCat = AnnualStatistics::expenseByCategory(reloaded, bothYears);
+    CHECK(expByCat.size() == 2);
+    CHECK(expByCat[0] == 2000000LL);
+    CHECK(expByCat[1] == 600000LL);
+
+    Income updatedInc(reloaded.incomes[2].getId(), Date(25, 1, 2026), "SRC002", 4500000LL, "WAL001", "Adjusted", reloaded.incomes[2].getRecurringId());
+    CHECK(Transactions::updateIncome(reloaded, 2, updatedInc));
+
+    CHECK(Balance::walletBalance(reloaded, "WAL001") == 3900000LL);
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 4000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 7900000LL);
+
+    sum2026 = AnnualStatistics::summarizeYears(reloaded, y2026);
+    CHECK(sum2026.totalIncome == 4500000LL);
+    CHECK(sum2026.totalExpense == 1200000LL);
+
+    incBySrc = AnnualStatistics::incomeBySource(reloaded, bothYears);
+    CHECK(incBySrc[0] == 6000000LL);
+    CHECK(incBySrc[1] == 4500000LL);
+
+    CHECK(Recurring::generateDueTransactions(reloaded, Date(31, 1, 2026)) == 0);
+
+    Transactions::TransactionRef delRef;
+    delRef.isIncome = false;
+    delRef.index = 1;
+    CHECK(reloaded.expenses[1].getCategoryId() == "CAT001");
+    CHECK(reloaded.expenses[1].getDate().getYear() == 2025);
+    CHECK(Transactions::deleteTransaction(reloaded, delRef));
+
+    CHECK(Balance::walletBalance(reloaded, "WAL002") == 5000000LL);
+    CHECK(Balance::totalBalance(reloaded) == 8900000LL);
+
+    sum2025 = AnnualStatistics::summarizeYears(reloaded, y2025);
+    CHECK(sum2025.totalIncome == 6000000LL);
+    CHECK(sum2025.totalExpense == 400000LL);
+
+    expByCat = AnnualStatistics::expenseByCategory(reloaded, bothYears);
+    CHECK(expByCat[0] == 1000000LL);
+    CHECK(expByCat[1] == 600000LL);
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2439,6 +2545,7 @@ int main() {
     testCrossRecurringCrud();
     testCrossGenerateDueTransactions();
     testCrossAnnualStatistics();
+    testCrossKhoaWithOtherModules();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
