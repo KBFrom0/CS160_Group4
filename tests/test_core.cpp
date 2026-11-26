@@ -2284,6 +2284,124 @@ static void testCrossGenerateDueTransactions() {
     CHECK(yearData.nextExpenseNo == prevNextExp);
 }
 
+static void testCrossAnnualStatistics() {
+    DynamicArray<int> yrs;
+    CHECK(!AnnualStatistics::containsYear(yrs, 0));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(!AnnualStatistics::containsYear(yrs, -1));
+
+    yrs.add(2026);
+    CHECK(AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2025));
+
+    yrs.add(0);
+    yrs.add(-2020);
+    yrs.add(2026);
+    yrs.add(2024);
+    CHECK(AnnualStatistics::containsYear(yrs, 0));
+    CHECK(AnnualStatistics::containsYear(yrs, -2020));
+    CHECK(AnnualStatistics::containsYear(yrs, 2026));
+    CHECK(AnnualStatistics::containsYear(yrs, 2024));
+    CHECK(!AnnualStatistics::containsYear(yrs, 2025));
+
+    FinanceData data;
+    data.sources.add(IncomeSource("SRC001", "Salary"));
+    data.sources.add(IncomeSource("SRC002", "Bonus"));
+    data.sources.add(IncomeSource("SRC003", "Unused"));
+    data.categories.add(ExpenseCategory("CAT001", "Food"));
+    data.categories.add(ExpenseCategory("CAT002", "Rent"));
+    data.categories.add(ExpenseCategory("CAT003", "Unused"));
+    data.wallets.add(Wallet("WAL001", "Bank"));
+
+    data.incomes.add(Income("INC0001", Date(31, 12, 2025), "SRC001", 3000000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0002", Date(1, 1, 2026), "SRC001", 3500000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0003", Date(15, 6, 2026), "SRC001", 2500000000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0004", Date(20, 7, 2026), "SRC002", 400000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0005", Date(5, 5, 2023), "SRC002", 1200000LL, "WAL001", ""));
+    data.incomes.add(Income("INC0006", Date(10, 8, 2026), "SRC999", 999999LL, "WAL001", ""));
+
+    data.expenses.add(Expense("EXP0001", Date(31, 12, 2025), "CAT001", 100000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0002", Date(1, 1, 2026), "CAT002", 3100000000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0003", Date(10, 2, 2026), "CAT002", 2900000000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0004", Date(12, 3, 2023), "CAT001", 500000LL, "WAL001", ""));
+    data.expenses.add(Expense("EXP0005", Date(18, 9, 2026), "CAT999", 777777LL, "WAL001", ""));
+
+    DynamicArray<int> emptyYears;
+    Statistics::PeriodSummary emptySum = AnnualStatistics::summarizeYears(data, emptyYears);
+    CHECK(emptySum.totalIncome == 0LL);
+    CHECK(emptySum.totalExpense == 0LL);
+    CHECK(emptySum.net() == 0LL);
+
+    DynamicArray<int> noMatchYears;
+    noMatchYears.add(1999);
+    noMatchYears.add(2035);
+    Statistics::PeriodSummary noMatchSum = AnnualStatistics::summarizeYears(data, noMatchYears);
+    CHECK(noMatchSum.totalIncome == 0LL);
+    CHECK(noMatchSum.totalExpense == 0LL);
+    CHECK(noMatchSum.net() == 0LL);
+
+    DynamicArray<int> y2025;
+    y2025.add(2025);
+    Statistics::PeriodSummary s2025 = AnnualStatistics::summarizeYears(data, y2025);
+    CHECK(s2025.totalIncome == 3000000000LL);
+    CHECK(s2025.totalExpense == 100000LL);
+    CHECK(s2025.net() == 2999900000LL);
+
+    DynamicArray<int> y2026;
+    y2026.add(2026);
+    Statistics::PeriodSummary s2026 = AnnualStatistics::summarizeYears(data, y2026);
+    CHECK(s2026.totalIncome == 6001399999LL);
+    CHECK(s2026.totalExpense == 6000777777LL);
+    CHECK(s2026.net() == 622222LL);
+
+    DynamicArray<int> dup2026;
+    dup2026.add(2026);
+    dup2026.add(2026);
+    dup2026.add(2026);
+    Statistics::PeriodSummary sDup = AnnualStatistics::summarizeYears(data, dup2026);
+    CHECK(sDup.totalIncome == s2026.totalIncome);
+    CHECK(sDup.totalExpense == s2026.totalExpense);
+    CHECK(sDup.net() == s2026.net());
+
+    DynamicArray<int> nonContig;
+    nonContig.add(2023);
+    nonContig.add(2026);
+    Statistics::PeriodSummary sNonContig = AnnualStatistics::summarizeYears(data, nonContig);
+    CHECK(sNonContig.totalIncome == 6002599999LL);
+    CHECK(sNonContig.totalExpense == 6001277777LL);
+    CHECK(sNonContig.net() == 1322222LL);
+
+    DynamicArray<long long> inc2026 = AnnualStatistics::incomeBySource(data, dup2026);
+    CHECK(inc2026.size() == 3);
+    CHECK(inc2026[0] == 6000000000LL);
+    CHECK(inc2026[1] == 400000LL);
+    CHECK(inc2026[2] == 0LL);
+
+    DynamicArray<long long> exp2026 = AnnualStatistics::expenseByCategory(data, dup2026);
+    CHECK(exp2026.size() == 3);
+    CHECK(exp2026[0] == 0LL);
+    CHECK(exp2026[1] == 6000000000LL);
+    CHECK(exp2026[2] == 0LL);
+
+    DynamicArray<long long> incNonContig = AnnualStatistics::incomeBySource(data, nonContig);
+    CHECK(incNonContig.size() == 3);
+    CHECK(incNonContig[0] == 6000000000LL);
+    CHECK(incNonContig[1] == 1600000LL);
+    CHECK(incNonContig[2] == 0LL);
+
+    DynamicArray<long long> expNonContig = AnnualStatistics::expenseByCategory(data, nonContig);
+    CHECK(expNonContig.size() == 3);
+    CHECK(expNonContig[0] == 500000LL);
+    CHECK(expNonContig[1] == 6000000000LL);
+    CHECK(expNonContig[2] == 0LL);
+
+    FinanceData noMaster;
+    noMaster.incomes.add(Income("INC0001", Date(1, 1, 2026), "SRC001", 1000LL, "WAL001", ""));
+    noMaster.expenses.add(Expense("EXP0001", Date(1, 1, 2026), "CAT001", 500LL, "WAL001", ""));
+    CHECK(AnnualStatistics::incomeBySource(noMaster, y2026).isEmpty());
+    CHECK(AnnualStatistics::expenseByCategory(noMaster, y2026).isEmpty());
+}
+
 int main() {
     testDynamicArray();
     testDate();
@@ -2320,6 +2438,7 @@ int main() {
     testAuth();
     testCrossRecurringCrud();
     testCrossGenerateDueTransactions();
+    testCrossAnnualStatistics();
     if (failures == 0) {
         std::cout << "All tests passed.\n";
         return 0;
