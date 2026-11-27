@@ -1478,6 +1478,18 @@ static void testStorageEdgeCases() {
     }
     FinanceData truncAlmostData;
     CHECK(!Storage::load(truncAlmostData, truncAlmostPath));
+    // Failed loading must preserve the existing data.
+    FinanceData preservedData;
+    preservedData.nextCategoryNo = 77;
+    preservedData.categories.add(ExpenseCategory("CAT999", "Keep me"));
+    preservedData.wallets.add(Wallet("WAL999", "Existing wallet"));
+
+    CHECK(!Storage::load(preservedData, truncAlmostPath));
+    CHECK(preservedData.nextCategoryNo == 77);
+    CHECK(preservedData.categories.size() == 1);
+    CHECK(preservedData.categories[0].getName() == "Keep me");
+    CHECK(preservedData.wallets.size() == 1);
+    CHECK(preservedData.wallets[0].getName() == "Existing wallet");
     std::remove(truncAlmostPath.c_str());
 
     delete[] fileBuffer;
