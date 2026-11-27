@@ -121,6 +121,10 @@ static void testMasterDataLookup() {
     data.sources.add(IncomeSource("SRC003", "Savings Interest"));
     data.wallets.add(Wallet("WAL001", "Cash"));
     data.wallets.add(Wallet("WAL002", "Bank Account"));
+    // Duplicate IDs: lookup returns the first matching item.
+    data.categories.add(ExpenseCategory("CAT001", "Duplicate Food"));
+    CHECK(MasterData::findCategoryIndex(data, "CAT001") == 0);
+    CHECK(MasterData::getCategoryName(data, "CAT001") == "Food");
 
     // Find the first, middle and last item in each list.
     CHECK(MasterData::findCategoryIndex(data, "CAT001") == 0);
