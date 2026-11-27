@@ -474,6 +474,24 @@ static void testRecurringCrud() {
     // A deleted ID is not reused.
     CHECK(!Recurring::removeRecurring(data, 2));
     CHECK(!Recurring::removeRecurring(data, -1));
+
+    // Invalid updates must not modify the existing recurring item.
+    RecurringTransaction invalidAmount("", TransactionType::INCOME, "SRC001", 0,
+                                    "WAL001", "Invalid", start, false, Date());
+    CHECK(!Recurring::updateRecurring(data, 0, invalidAmount));
+    CHECK(data.recurrings[0].getId() == "REC001");
+    CHECK(data.recurrings[0].getAmount() == 2000);
+    CHECK(data.recurrings[0].getDescription() == "Raise");
+
+    RecurringTransaction invalidSource("", TransactionType::INCOME, "SRC999", 100,
+                                    "WAL001", "Invalid", start, false, Date());
+    CHECK(!Recurring::updateRecurring(data, 0, invalidSource));
+    CHECK(data.recurrings[0].getAmount() == 2000);
+
+    RecurringTransaction invalidWallet("", TransactionType::INCOME, "SRC001", 100,
+                                    "WAL999", "Invalid", start, false, Date());
+    CHECK(!Recurring::updateRecurring(data, 0, invalidWallet));
+    CHECK(data.recurrings[0].getAmount() == 2000);
     CHECK(Recurring::removeRecurring(data, 0));
     CHECK(data.recurrings.size() == 1);
     CHECK(data.recurrings[0].getId() == "REC002");
