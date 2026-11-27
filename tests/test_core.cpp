@@ -31,10 +31,14 @@ static void testDynamicArray() {
     DynamicArray<int> a;
     CHECK(a.size() == 0);
     CHECK(a.isEmpty());
+    CHECK(a.rawData() == nullptr);
 
     for (int i = 0; i < 100; i++) a.add(i);
     CHECK(a.size() == 100);
     CHECK(a[0] == 0 && a[99] == 99);
+    CHECK(a.rawData() != nullptr);
+    CHECK(a.rawData()[0] == 0);
+    CHECK(a.rawData()[99] == 99);
 
     a.removeAt(0);
     CHECK(a.size() == 99);
@@ -66,6 +70,7 @@ static void testDynamicArray() {
     CHECK(s[1] == "Rent");
     s.clear();
     CHECK(s.isEmpty());
+    CHECK(s.rawData() == nullptr);
 }
 
 static void testDate() {
