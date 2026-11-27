@@ -83,6 +83,14 @@ static void testDate() {
     CHECK(mid.isBetween(a, b));
     CHECK(a.isBetween(a, b));
     CHECK(!Date(1, 1, 2026).isBetween(a, b));
+
+    // Invalid parsing must not modify the previous result.
+    Date previous(15, 8, 2026);
+    CHECK(!Date::parse("31/02/2026", previous));
+    CHECK(previous == Date(15, 8, 2026));
+
+    CHECK(!Date::parse("invalid", previous));
+    CHECK(previous == Date(15, 8, 2026));
     CHECK(Date::today().isValid());
 }
 
