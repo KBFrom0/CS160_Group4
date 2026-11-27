@@ -989,6 +989,16 @@ static void testMasterDataRemoveMiddleItem() {
     CHECK(MasterData::findCategoryIndex(data, "CAT003") == 1);
     CHECK(MasterData::findSourceIndex(data, "SRC003") == 1);
     CHECK(MasterData::findWalletIndex(data, "WAL003") == 1);
+
+    // Removing a non-existent ID must not modify the lists.
+    message = "old message";
+
+    CHECK(!MasterData::removeItem(data, Kind::CATEGORY, "CAT999", message));
+    CHECK(message == "The category does not exist.");
+
+    CHECK(data.categories.size() == 2);
+    CHECK(data.categories[0].getId() == "CAT001");
+    CHECK(data.categories[1].getId() == "CAT003");
 }
 
 static void testMasterDataInUseAfterTransactionDeletion() {
